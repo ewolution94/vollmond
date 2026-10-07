@@ -136,6 +136,35 @@
     starting = false;
   }
 
+  type Row = { key: Key & keyof Settings; kind?: 'switch'; values?: readonly string[]; hint?: Key };
+  /** The classic rules, in four groups (One night has only the clocks). */
+  const GROUPS: { title: Key; rows: Row[] }[] = [
+    {
+      title: 'rulesVote',
+      rows: [
+        { key: 'votes', values: ['open', 'secret'] },
+        { key: 'tie', values: ['none', 'runoff'] },
+        { key: 'captain', kind: 'switch', hint: 'captainHint' },
+      ],
+    },
+    {
+      title: 'rulesNight',
+      rows: [
+        { key: 'firstNight', values: ['hunt', 'calm'] },
+        { key: 'seer', values: ['role', 'side'] },
+        { key: 'witchSelf', kind: 'switch' },
+      ],
+    },
+    {
+      title: 'rulesEnd',
+      rows: [
+        { key: 'reveal', values: ['role', 'side', 'none'] },
+        { key: 'parity' },
+        { key: 'ghosts', kind: 'switch' },
+      ],
+    },
+  ];
+
   const seg = (values: readonly (string | number)[], label: (v: string) => string) => values.map((v) => ({ value: String(v), label: label(String(v)) }));
   const clock = (s: number) => (s === 0 ? t('open') : s < 60 ? t('seconds', { n: s }) : t('minutes', { n: s / 60 }));
 </script>
@@ -163,7 +192,7 @@
   </header>
 
   <div class="columns">
-    <div class="col">
+    <div class="col people">
       <div class="plate invite">
         <h2 class="label">{t('invite')}</h2>
         <p class="url">{url.replace(/^https?:\/\//, '')}</p>
@@ -191,7 +220,7 @@
       </div>
     </div>
 
-    <div class="col">
+    <div class="col game">
       <div class="plate">
         <h2 class="label">{t('mode')}</h2>
         <ewo-segmented
@@ -271,41 +300,60 @@
         </ewo-switch>
       </div>
 
-      <details class="plate rules">
-        <summary class="label">{t('rules')}</summary>
-        <div class="grid">
-          <span>{t('nightClock')}</span>
+    </div>
+
+    <!-- The rules stay open: they decide the game (the user, 2026-10-08). On a wide screen they get
+         their own column on the right. -->
+    <section class="plate rules" aria-labelledby="rules-title">
+      <h2 class="label" id="rules-title">{t('rules')}</h2>
+      <div class="group">
+        <h3 class="sub">{t('rulesTime')}</h3>
+        <div class="row">
+          <span class="name">{t('nightClock')}</span>
           <ewo-segmented tone="accent" size="sm" label={t('nightClock')} value={String(settings.night)} disabled={!isHost}
             options={seg(config?.choices.night ?? [20, 30, 45, 60], (v) => t('seconds', { n: v }))}
             onchange={(e) => set({ night: Number(e.detail.value) })}></ewo-segmented>
-          <span>{t('debateClock')}</span>
+        </div>
+        <div class="row">
+          <span class="name">{t('debateClock')}</span>
           <ewo-segmented tone="accent" size="sm" label={t('debateClock')} value={String(settings.debate)} disabled={!isHost}
             options={seg(config?.choices.debate ?? [60, 120, 180, 300, 480, 0], (v) => clock(Number(v)))}
             onchange={(e) => set({ debate: Number(e.detail.value) })}></ewo-segmented>
-          {#if !oneNight}
-          {#each [['reveal', ['role', 'side', 'none']], ['votes', ['open', 'secret']], ['tie', ['none', 'runoff']], ['firstNight', ['hunt', 'calm']], ['seer', ['role', 'side']]] as const as [key, values] (key)}
-            <span>{t(key as Key)}</span>
-            <ewo-segmented tone="accent" size="sm" label={t(key as Key)} value={String(settings[key])} disabled={!isHost}
-              options={seg(values, (v) => tk(`${key}:${v}`))}
-              onchange={(e) => set({ [key]: e.detail.value } as Partial<Settings>)}></ewo-segmented>
-          {/each}
-          <span>{t('parity')}</span>
-          <ewo-segmented tone="accent" size="sm" label={t('parity')} value={settings.parity ? 'on' : 'off'} disabled={!isHost}
-            options={seg(['on', 'off'], (v) => tk(`parity:${v}`))}
-            onchange={(e) => set({ parity: e.detail.value === 'on' })}></ewo-segmented>
-          {/if}
         </div>
-        {#if oneNight}
-          <p class="hint">{t('oneNightRules')}</p>
-        {:else}
-          <ewo-switch row tone="accent" checked={settings.captain} disabled={!isHost} onchange={(e) => set({ captain: e.detail.checked })}>
-            {t('captain')}<span slot="hint">{t('captainHint')}</span>
-          </ewo-switch>
-          <ewo-switch row tone="accent" checked={settings.witchSelf} disabled={!isHost} onchange={(e) => set({ witchSelf: e.detail.checked })}>{t('witchSelf')}</ewo-switch>
-          <ewo-switch row tone="accent" checked={settings.ghosts} disabled={!isHost} onchange={(e) => set({ ghosts: e.detail.checked })}>{t('ghosts')}</ewo-switch>
-        {/if}
-      </details>
-    </div>
+      </div>
+      {#if oneNight}
+        <p class="hint">{t('oneNightRules')}</p>
+      {:else}
+        {#each GROUPS as group (group.title)}
+          <div class="group">
+            <h3 class="sub">{t(group.title)}</h3>
+            {#each group.rows as row (row.key)}
+              {#if row.kind === 'switch'}
+                <div class="row switch">
+                  <ewo-switch row tone="accent" checked={Boolean(settings[row.key])} disabled={!isHost} onchange={(e) => set({ [row.key]: e.detail.checked } as Partial<Settings>)}>
+                    {t(row.key)}{#if row.hint}<span slot="hint">{t(row.hint)}</span>{/if}
+                  </ewo-switch>
+                </div>
+              {:else if row.key === 'parity'}
+                <div class="row">
+                  <span class="name">{t('parity')}</span>
+                  <ewo-segmented tone="accent" size="sm" label={t('parity')} value={settings.parity ? 'on' : 'off'} disabled={!isHost}
+                    options={seg(['on', 'off'], (v) => tk(`parity:${v}`))}
+                    onchange={(e) => set({ parity: e.detail.value === 'on' })}></ewo-segmented>
+                </div>
+              {:else}
+                <div class="row">
+                  <span class="name">{t(row.key)}</span>
+                  <ewo-segmented tone="accent" size="sm" label={t(row.key)} value={String(settings[row.key])} disabled={!isHost}
+                    options={seg(row.values ?? [], (v) => tk(`${row.key}:${v}`))}
+                    onchange={(e) => set({ [row.key]: e.detail.value } as Partial<Settings>)}></ewo-segmented>
+                </div>
+              {/if}
+            {/each}
+          </div>
+        {/each}
+      {/if}
+    </section>
   </div>
 
   <footer class="go">
@@ -356,10 +404,28 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 18px;
   }
+  /* Two columns: the people on the left; the game and its rules on the right. */
   @media (min-width: 900px) {
     .columns {
       grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
       align-items: start;
+    }
+    .people {
+      grid-row: span 2;
+    }
+  }
+  /* Three: the rules get the right-hand column to themselves. Not sticky: a short lobby can't scroll,
+     and the Start bar would hide the last rules for good. */
+  @media (min-width: 1280px) {
+    /* Body-qualified: App.svelte's own main rule has the same specificity and comes later. */
+    :global(body main:has(.lobby)) {
+      max-width: 1480px;
+    }
+    .columns {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .people {
+      grid-row: auto;
     }
   }
   .col {
@@ -544,35 +610,53 @@
     box-shadow: 0 0 0 2px var(--paper-2);
     transition: left 0.5s cubic-bezier(0.3, 1.4, 0.4, 1);
   }
-  .rules summary {
-    cursor: pointer;
-    list-style: none;
+  /* The rules: four small groups of rows, a label on the left and its control on the right; in a
+     narrow column the control goes under its label. */
+  .rules {
+    container-type: inline-size;
+    gap: 6px;
   }
-  .rules summary::before {
-    content: '▸ ';
+  .rules .label {
+    margin: 0;
   }
-  .rules[open] summary::before {
-    content: '▾ ';
-  }
-  .rules .grid {
+  .group {
     display: grid;
-    grid-template-columns: auto 1fr;
+  }
+  .group + .group {
+    margin-top: 10px;
+  }
+  .sub {
+    margin: 10px 0 2px;
+    color: var(--ink-3);
+    font: 600 11px / 1.4 var(--ewo-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px 14px;
-    font-size: 14px;
-    font-weight: 550;
+    gap: 6px 16px;
+    padding: 11px 0;
+    border-top: 1px solid var(--line-2);
   }
-  .rules .grid ewo-segmented {
-    justify-self: end;
+  .sub + .row {
+    border-top: 0;
   }
-  @media (max-width: 480px) {
-    .rules .grid {
-      grid-template-columns: 1fr;
-      gap: 6px;
+  .row .name {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .row.switch {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 8px 0;
+  }
+  @container (max-width: 420px) {
+    .row:not(.switch) {
+      grid-template-columns: minmax(0, 1fr);
     }
-    .rules .grid ewo-segmented {
+    .row ewo-segmented {
       justify-self: start;
-      margin-bottom: 8px;
     }
   }
   .go {
