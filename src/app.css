@@ -34,6 +34,12 @@
   --pink: #ff4d9d;
   --cream: #f1e8d4;
   --midnight: #0e1130;
+  /* The players' arms (Folio's ewo-emblem, heraldry) print in the same inks, with the page's rim. */
+  --ewo-emblem-1: var(--indigo);
+  --ewo-emblem-2: var(--pink);
+  --ewo-emblem-3: var(--cream);
+  --ewo-emblem-ink: var(--ink);
+  --ewo-emblem-strike: var(--pink);
 
   /* The page, by theme. Text colours clear 4.5:1 on --paper and --paper-2 in both. */
   --paper: light-dark(#f1e8d4, #0e1130);

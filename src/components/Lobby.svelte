@@ -5,11 +5,12 @@
   view takes over once it agrees (learnings/ui-preferences.md).
 -->
 <script lang="ts">
-  import type { Config, Deck, Player, RoleId, Settings, View } from '../lib/api';
+  import type { Avatar, Config, Deck, Player, RoleId, Settings, View } from '../lib/api';
   import { ApiError } from '../lib/api';
   import type { Room } from '../lib/room.svelte';
   import { errorText, t, tk, type Key } from '../lib/i18n.svelte';
   import { deckCards, ROLE_ORDER } from '../lib/roles';
+  import ArmsSheet from './ArmsSheet.svelte';
   import Card from './Card.svelte';
   import Qr from './Qr.svelte';
   import Shield from './Shield.svelte';
@@ -99,6 +100,14 @@
     set({ deck: next });
   }
 
+  // ---- your arms, chosen again here (the server takes them at once; the page shows them on its next view)
+  let choosing = $state(false);
+  let armsTimer = 0;
+  function changeArms(next: Avatar) {
+    clearTimeout(armsTimer);
+    armsTimer = window.setTimeout(() => void act('avatar', { avatar: next }), 250);
+  }
+
   // ---- the rest
   let copied = $state(false);
   let showQr = $state(false);
@@ -133,7 +142,11 @@
 
 {#snippet person(p: Player)}
   <li class="person" class:offline={!p.online}>
-    <Shield avatar={p.avatar} size={40} />
+    {#if p.id === me.id}
+      <button class="own" type="button" onclick={() => (choosing = true)} aria-label={t('chooseArms')} title={t('chooseArms')}><Shield avatar={p.avatar} size={40} /></button>
+    {:else}
+      <Shield avatar={p.avatar} size={40} />
+    {/if}
     <span class="name">{p.name}{#if p.id === me.id}<span class="you"> ·&nbsp;{t('you')}</span>{/if}</span>
     {#if p.id === view.host}<span class="tag host">{t('host')}</span>{/if}
     {#if p.bot}<span class="tag">{t('bot')}</span>{/if}
@@ -307,7 +320,21 @@
   </footer>
 </section>
 
+<ArmsSheet open={choosing} arms={me.avatar} onchange={changeArms} onclose={() => (choosing = false)} />
+
 <style>
+  .own {
+    display: grid;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+  }
+  .own:focus-visible {
+    outline: 2px solid var(--pink-text);
+    outline-offset: 2px;
+  }
   .lobby {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

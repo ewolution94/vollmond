@@ -1,8 +1,9 @@
-<!-- Your name and your coat of arms (tap the arms for new ones), and the button that goes on. -->
+<!-- Your name and your coat of arms (tap the arms to choose them), and the button that goes on. -->
 <script lang="ts">
   import type { Avatar } from '../lib/api';
   import { t } from '../lib/i18n.svelte';
   import { saveArms, savedArms, savedName } from '../lib/session';
+  import ArmsSheet from './ArmsSheet.svelte';
   import Shield from './Shield.svelte';
 
   let {
@@ -22,20 +23,12 @@
   const random = (): Avatar => ({ field: Math.floor(Math.random() * 8), charge: Math.floor(Math.random() * 16) });
   let name = $state(savedName());
   let arms: Avatar = $state(savedArms() ?? random());
-  let spin = $state(0);
+  let choosing = $state(false);
   let input: HTMLInputElement | undefined = $state();
 
   $effect(() => {
     if (autofocus && !name) input?.focus();
   });
-
-  function reroll() {
-    let next = random();
-    while (next.field === arms.field && next.charge === arms.charge) next = random();
-    arms = next;
-    saveArms(next);
-    spin++;
-  }
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -47,11 +40,9 @@
 <form class="you" onsubmit={submit}>
   <label class="label" for="name">{t('yourName')}</label>
   <div class="row">
-    <button type="button" class="arms" onclick={reroll} aria-label={t('reroll')} title={t('reroll')}>
-      {#key spin}
-        <span class="spin"><Shield avatar={arms} size={52} /></span>
-      {/key}
-      <svg class="dice" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.6L4 16M4 20v-4h4" /></svg>
+    <button type="button" class="arms" onclick={() => (choosing = true)} aria-label={t('chooseArms')} title={t('chooseArms')}>
+      <Shield avatar={arms} size={52} />
+      <svg class="edit" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19h4L19 9l-4-4L5 15ZM13 7l4 4" /></svg>
     </button>
     <input
       id="name"
@@ -67,6 +58,8 @@
   <button class="btn primary block" disabled={busy}>{action}</button>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </form>
+
+<ArmsSheet open={choosing} {arms} onchange={(next) => (arms = next)} onclose={() => (choosing = false)} />
 
 <style>
   .you {
@@ -94,17 +87,7 @@
     outline: 2px solid var(--pink-text);
     outline-offset: 2px;
   }
-  .spin {
-    display: block;
-    animation: drop 0.45s cubic-bezier(0.3, 1.5, 0.5, 1);
-  }
-  @keyframes drop {
-    from {
-      transform: translateY(-10px) rotate(-12deg) scale(0.8);
-      opacity: 0.4;
-    }
-  }
-  .dice {
+  .edit {
     position: absolute;
     right: -6px;
     bottom: -6px;
@@ -121,10 +104,5 @@
   }
   .error {
     margin: 0;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .spin {
-      animation: none;
-    }
   }
 </style>

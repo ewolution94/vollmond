@@ -92,10 +92,16 @@
     gap: 28px;
     padding-top: 12px;
   }
+  /* The hand fans out past a phone's edges. The hero reaches into the page's gutter and clips there,
+     so the cards look cut by the screen as before, but no phone widens the page to fit them. */
   .hero {
     display: grid;
     justify-items: center;
     gap: 8px;
+    justify-self: stretch;
+    margin-inline: calc(-1 * var(--gutter));
+    padding-inline: var(--gutter);
+    overflow-x: clip;
     text-align: center;
   }
   .fan {
