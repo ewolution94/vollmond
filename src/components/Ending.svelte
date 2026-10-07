@@ -1,6 +1,7 @@
 <!--
   The end: who won, every card turning over one after another, the awards, and the chronicle of the
   whole game, night by night. The host starts the next round from here.
+  One night shows each card as it ended, what was dealt where it changed, every vote, and the middle.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -8,13 +9,19 @@
   import { ApiError } from '../lib/api';
   import type { Room } from '../lib/room.svelte';
   import { errorText, t, tk } from '../lib/i18n.svelte';
-  import { narrate } from '../lib/narrate';
+  import { listNames, narrate } from '../lib/narrate';
   import Card from './Card.svelte';
   import Shield from './Shield.svelte';
 
   let { room = null, view, game, onleave, screen = false }: { room?: Room | null; view: View; game: Game; onleave?: () => void; screen?: boolean } = $props();
 
   const side = $derived(game.winner?.side ?? 'none');
+  const oneNight = $derived(game.mode === 'onenight');
+  /** One night can have two winners (the village and the Tanner) or none at all. */
+  const title = $derived(
+    oneNight ? (game.winner?.sides?.length ? game.winner.sides.map((x) => tk(`win:${x}`)).join(' ') : t('win:nobody')) : tk(`win:${side}`),
+  );
+  const role = (id: unknown) => (id ? tk(`role:${id}`) : '?');
   const won = $derived(Boolean(game.me && game.winner?.players.includes(game.me.id)));
   const isHost = $derived(Boolean(room && view.host === room.seat.player));
   const name = (id: unknown) => view.players.find((p) => p.id === id)?.name ?? '?';
@@ -57,6 +64,10 @@
       case 'captain':
         return t('log:captain', { id: name(v('id')) });
       case 'vote':
+        if (oneNight) {
+          const dead = (v('dead') as string[]) ?? [];
+          return dead.length ? t('log:onevote', { dead: listNames(dead.map(name)) }) : t('log:onevoteNone');
+        }
         return v('out') ? t('log:vote', { out: name(v('out')) }) : v('runoff') || v('tie') ? null : t('log:voteNone');
       case 'idiot':
         return t('log:idiot', { id: name(v('id')) });
@@ -64,6 +75,43 @@
         return t('log:powers-lost');
       case 'quiet':
         return t('log:quiet');
+      case 'thief':
+        return v('took') ? t('log:thief', { took: role(v('took')) }) : t('log:thiefKept');
+      case 'model':
+        return t('log:model', { target: name(v('target')) });
+      case 'fox':
+        return t('log:fox', { target: name(v('target')), found: t(v('found') ? 'log:foxYes' : 'log:foxNo') });
+      case 'raven':
+        return t('log:raven', { target: name(v('target')) });
+      case 'charm':
+        return t('log:charm', { targets: listNames(((v('targets') as string[]) ?? []).map(name)) });
+      case 'second':
+        return t('log:second', { target: name(v('target')) });
+      case 'white':
+        return t('log:white', { target: name(v('target')) });
+      case 'infect':
+        return t('log:infect', { id: name(v('id')) });
+      case 'scapegoat':
+        return t('log:scapegoat', { id: name(v('id')) });
+      case 'judge':
+        return t('log:judge');
+      case 'growl':
+        return v('growl') ? t('log:growl') : null;
+      // One night
+      case 'lone':
+        return t('log:lone', { card: role(v('card')) });
+      case 'look':
+        return t('log:look', {
+          what: v('target') ? `${name(v('target'))} (${role(v('card'))})` : listNames(((v('cards') as string[]) ?? []).map(role)),
+        });
+      case 'rob':
+        return t('log:rob', { target: name(v('target')), card: role(v('card')) });
+      case 'swap':
+        return t('log:swap', { a: name(v('a')), b: name(v('b')) });
+      case 'drink':
+        return t('log:drink', { n: Number(v('index') ?? 0) + 1 });
+      case 'woke':
+        return t('log:woke', { card: role(v('card')) });
       default:
         return null;
     }
@@ -74,8 +122,8 @@
     const out: { title: string; lines: string[] }[] = [];
     let current: { title: string; lines: string[] } | null = null;
     for (const e of game.log ?? []) {
-      const isDay = ['vote', 'election', 'idiot'].includes(e.type) || (e.type === 'death' && e.cause === 'vote') || ((e.type === 'shot' || e.type === 'captain') && (e.day ?? 0) >= (e.night ?? 0) && (e.day ?? 0) > 0);
-      const title = isDay ? t('day', { n: e.day ?? 0 }) : t('night', { n: e.night ?? 0 });
+      const isDay = ['vote', 'election', 'idiot', 'scapegoat', 'judge'].includes(e.type) || (e.type === 'death' && e.cause === 'vote') || ((e.type === 'shot' || e.type === 'captain') && (e.day ?? 0) >= (e.night ?? 0) && (e.day ?? 0) > 0);
+      const title = isDay ? t('day', { n: e.day ?? 1 }) : t('night', { n: e.night ?? 1 });
       const line = entry(e);
       if (!line) continue;
       if (!current || current.title !== title) {
@@ -105,7 +153,7 @@
 <section class="end" class:screen>
   <header>
     {#if game.me}<p class="band">{won ? t('youWon') : t('youLost')}</p>{/if}
-    <h1 class="display">{tk(`win:${side}`)}</h1>
+    <h1 class="display">{title}</h1>
     <p class="line">{narrate(view)}</p>
   </header>
 
@@ -117,10 +165,31 @@
         <figcaption>
           {#if p}<Shield avatar={p.avatar} size={20} />{/if}
           <span>{p?.name}</span>
+          {#if oneNight}
+            {#if s.dealt && s.dealt !== s.role}<small class="was">{t('dealtAs', { role: role(s.dealt) })}</small>{/if}
+            {#if game.votes?.[s.id]}<small class="vote">→ {name(game.votes[s.id])}</small>{/if}
+          {/if}
         </figcaption>
       </figure>
     {/each}
   </div>
+
+  {#if oneNight && game.center}
+    <div class="middle">
+      <h2 class="label">{t('theMiddle')}</h2>
+      <div class="cards">
+        {#each game.center.now as card, i (i)}
+          <figure>
+            <Card role={card} face={turnedUpTo >= game.seats.length ? 'front' : 'back'} width={screen ? '120px' : '92px'} />
+            <figcaption>
+              <span>{t('middleCard', { n: i + 1 })}</span>
+              {#if game.center.dealt[i] !== card}<small class="was">{t('dealtAs', { role: role(game.center.dealt[i]) })}</small>{/if}
+            </figcaption>
+          </figure>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   {#if game.awards?.length}
     <div class="awards">
@@ -209,8 +278,10 @@
   }
   figcaption {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     align-items: center;
-    gap: 6px;
+    gap: 2px 6px;
     max-width: 120px;
     font-weight: 650;
     font-size: 14px;
@@ -222,6 +293,30 @@
   }
   .gone figcaption {
     opacity: 0.6;
+  }
+  .was,
+  .vote {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.3;
+    text-align: center;
+  }
+  .was {
+    color: var(--pink-text);
+    font-weight: 650;
+  }
+  .vote {
+    color: var(--ink-3);
+    font-family: var(--ewo-mono);
+  }
+  .middle {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+  }
+  .middle .label {
+    margin: 0;
   }
   .awards ul {
     list-style: none;

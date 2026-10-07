@@ -1,9 +1,10 @@
 <!--
   The big moments, over everything for a few seconds: night falls (the moon rises), dawn breaks (the
-  night's dead turn their cards over), the verdict (the one voted out turns theirs). Only when the
-  moment happens, not when a page loads in the middle of it; a tap ends it early.
+  night's dead turn their cards over, the bear growls or not), the verdict (the one voted out turns
+  theirs). Only when the moment happens, not when a page loads in the middle of it; a tap ends it early.
 -->
 <script lang="ts">
+  import { DARK } from '../lib/phase';
   import type { Game, View } from '../lib/api';
   import { t, tk } from '../lib/i18n.svelte';
   import { narrate } from '../lib/narrate';
@@ -16,22 +17,25 @@
   let shown = $state<{ kind: Kind; key: string; line: string } | null>(null);
   let turned = $state(false);
   let seen = '';
+  let before = '';
   let timer = 0;
   let flip = 0;
 
-  function kindOf(g: Game): Kind | null {
-    if (g.phase === 'dusk' || (g.phase === 'night' && !(g.night === 1 && g.deck?.cupid))) return 'night';
+  function kindOf(g: Game, previous: string): Kind | null {
+    if (DARK.has(g.phase) && !DARK.has(previous)) return 'night';
     if (g.phase === 'dawn') return 'dawn';
     if (g.phase === 'verdict') return 'verdict';
     return null;
   }
 
   $effect(() => {
-    const key = `${view.games}:${game.phase}:${game.night}:${game.day}`;
+    const key = `${view.games}:${game.phase}:${game.night}:${game.day}:${game.secondVote}`;
     if (key === seen) return;
     const first = seen === '';
     seen = key;
-    const kind = kindOf(game);
+    const previous = before;
+    before = game.phase;
+    const kind = kindOf(game, previous);
     if (first || !kind) return;
     clearTimeout(timer);
     clearTimeout(flip);
@@ -79,8 +83,9 @@
         {:else}
           <p class="none display">{t('morningNone')}</p>
         {/if}
+        {#if game.growl !== null}<p class="growl display" class:loud={game.growl}>{game.growl ? t('growl') : t('growlNot')}</p>{/if}
       {:else if out}
-        <p class="kicker band">{t('phase:verdict')}</p>
+        <p class="kicker band">{out.second ? t('secondVote') : t('phase:verdict')}</p>
         {#if out.out}
           {@const p = player(out.out)}
           <figure class="verdict">
@@ -89,7 +94,9 @@
             {:else if p}
               <div class="arms"><Shield avatar={p.avatar} size={screen ? 180 : 120} dead={!out.idiot} /></div>
             {/if}
-            <figcaption class="display">{out.idiot ? t('verdictIdiot', { name: p?.name ?? '' }) : t('verdictOut', { name: p?.name ?? '' })}</figcaption>
+            <figcaption class="display">
+              {out.idiot ? t('verdictIdiot', { name: p?.name ?? '' }) : out.scapegoat ? t('verdictGoat', { name: p?.name ?? '' }) : t('verdictOut', { name: p?.name ?? '' })}
+            </figcaption>
           </figure>
         {:else}
           <p class="none display">{out.tie ? t('verdictTie') : t('verdictNone')}</p>
@@ -232,6 +239,22 @@
     margin: 0;
     font-size: clamp(32px, 6vw, 52px);
   }
+  .growl {
+    margin: 0;
+    font-size: clamp(24px, 5vw, 40px);
+    opacity: 0.7;
+  }
+  .growl.loud {
+    opacity: 1;
+    color: var(--pink-text);
+    animation: growl 0.12s linear 1.2s 6 alternate;
+  }
+  @keyframes growl {
+    to {
+      translate: 3px -1px;
+      rotate: 1deg;
+    }
+  }
   .line {
     margin: 0;
     max-width: 40ch;
@@ -246,7 +269,8 @@
     .moon,
     .sun,
     figure,
-    .halo {
+    .halo,
+    .growl.loud {
       animation: none;
     }
   }

@@ -19,6 +19,13 @@ export function listNames(names: string[]) {
 
 /** The moment's key in LINES and the names it mentions. */
 export function moment(game: Game): { key: string; ids: string[] } {
+  if (game.mode === 'onenight') {
+    if (game.phase === 'end') {
+      const side = game.winner?.side ?? 'none';
+      return side === 'tanner' ? { key: 'tanner', ids: [] } : { key: side === 'village' ? 'oneVillage' : side === 'wolves' ? 'oneWolves' : 'oneNone', ids: [] };
+    }
+    return { key: { deal: 'oneDeal', night: 'oneNight', debate: 'oneDebate', vote: 'oneVote' }[game.phase as string] ?? game.phase, ids: [] };
+  }
   switch (game.phase) {
     case 'dawn':
       return game.morning.length ? { key: 'dawn', ids: game.morning.map((d) => d.id) } : { key: 'dawnNone', ids: [] };
@@ -30,6 +37,7 @@ export function moment(game: Game): { key: string; ids: string[] } {
     case 'verdict': {
       const v = game.verdict;
       if (v?.idiot && v.out) return { key: 'verdictIdiot', ids: [v.out] };
+      if (v?.scapegoat && v.out) return { key: 'verdictGoat', ids: [v.out] };
       if (v?.out) return { key: 'verdict', ids: [v.out] };
       return { key: v?.tie ? 'verdictTie' : 'verdictNone', ids: [] };
     }

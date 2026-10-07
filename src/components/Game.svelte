@@ -4,6 +4,7 @@
   out where this device speaks). At one table phones stay silent: only the big screen speaks there.
 -->
 <script lang="ts">
+  import { isDark } from '../lib/phase';
   import { onDestroy } from 'svelte';
   import type { Config } from '../lib/api';
   import type { Room } from '../lib/room.svelte';
@@ -25,9 +26,8 @@
     if (view && view.phase !== 'gone' && !seated) onrejoin();
   });
 
-  const NIGHT = new Set(['dusk', 'night', 'witch']);
   $effect(() => {
-    document.documentElement.classList.toggle('night', Boolean(game && NIGHT.has(game.phase)));
+    document.documentElement.classList.toggle('night', isDark(game));
   });
   onDestroy(() => document.documentElement.classList.remove('night'));
 

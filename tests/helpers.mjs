@@ -35,12 +35,12 @@ export const SETTINGS = Object.freeze({
  * @param {string[]} cards
  * @param {Partial<typeof SETTINGS>} [over]
  */
-export function table(cards, over = {}, seed = 1) {
+export function table(cards, over = {}, seed = 1, extra = []) {
   const players = cards.map((_, i) => ({ id: `p${i}` }));
   const deck = {};
-  for (const c of cards) deck[c] = (deck[c] ?? 0) + 1;
+  for (const c of [...cards, ...extra]) deck[c] = (deck[c] ?? 0) + 1;
   let now = 0;
-  const g = createGame({ players, settings: { ...SETTINGS, ...over }, deck, rng: seeded(seed), now, cards });
+  const g = createGame({ players, settings: { ...SETTINGS, ...over }, deck, rng: seeded(seed), now, cards, extra });
   const t = {
     g,
     get now() {
@@ -77,6 +77,9 @@ export function table(cards, over = {}, seed = 1) {
           if (g.acts.has(id)) continue;
           if (p.kind === 'wolf') {
             if (picks.wolf) act(g, id, { kind: 'pick', target: picks.wolf }, now);
+            if (p.extras?.second && picks.second) act(g, id, { kind: 'second', target: picks.second }, now);
+            if (p.extras?.infect && picks.infect) act(g, id, { kind: 'infect', on: true }, now);
+            if (p.extras?.white && picks.white) act(g, id, { kind: 'white', target: picks.white }, now);
           } else if (p.kind === 'seer') {
             if (picks.seer) act(g, id, { kind: 'pick', target: picks.seer }, now);
           } else if (p.kind === 'guard') {
@@ -87,6 +90,16 @@ export function table(cards, over = {}, seed = 1) {
             act(g, id, { kind: 'witch', heal: Boolean(picks.heal), poison: picks.poison ?? null }, now);
           } else if (p.kind === 'girl') {
             act(g, id, { kind: 'peek', peek: Boolean(picks.peek) }, now);
+          } else if (p.kind === 'thief') {
+            if (picks.take !== undefined) act(g, id, { kind: 'take', index: picks.take }, now);
+          } else if (p.kind === 'model') {
+            if (picks.model) act(g, id, { kind: 'pick', target: picks.model }, now);
+          } else if (p.kind === 'fox') {
+            if (picks.fox) act(g, id, { kind: 'pick', target: picks.fox }, now);
+          } else if (p.kind === 'raven') {
+            act(g, id, { kind: 'pick', target: picks.raven ?? null }, now);
+          } else if (p.kind === 'piper') {
+            if (picks.charm) act(g, id, { kind: 'charm', a: picks.charm[0], b: picks.charm[1] }, now);
           } else if (p.options?.length) {
             act(g, id, { kind: 'pick', target: p.options[0] }, now);
           }

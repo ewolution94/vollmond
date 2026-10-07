@@ -40,14 +40,43 @@ export function botMove(view, rng, { humansHurried = false } = {}) {
       return { kind: 'witch', heal, poison };
     }
     case 'wolf': {
-      // Go with the first pick in the pack's order, so the pack settles on one name quickly.
+      // Go with the first pick in the pack's order, so the pack settles on one name quickly. The
+      // extras come one at a time, after the pick, each asked once.
       const lead = (me.pack ?? []).find((p) => p.alive && p.pick);
       const target = lead ? lead.pick : pickFrom(prompt.options);
-      if (me.act?.target === target) return null;
-      return target ? { kind: 'pick', target } : null;
+      if (me.act?.target !== target && target) return { kind: 'pick', target };
+      const extras = prompt.extras ?? {};
+      const done = me.extras ?? {};
+      if (extras.second && !('second' in done)) return { kind: 'second', target: rng() < 0.6 ? pickFrom(extras.second.filter((x) => x !== target)) : null };
+      if (extras.infect && !('infect' in done)) return { kind: 'infect', on: rng() < 0.3 };
+      if (extras.white && !('white' in done)) return { kind: 'white', target: rng() < 0.4 ? pickFrom(extras.white) : null };
+      return null;
     }
     case 'vote':
+      if (prompt.judge && !me.act && !me.judgeCalled && rng() < 0.15) return { kind: 'judge' };
       return rng() < 0.1 ? { kind: 'pick', target: null } : { kind: 'pick', target: pickFrom(prompt.options) };
+    case 'thief':
+      return prompt.must || rng() < 0.7 ? { kind: 'take', index: rng() < 0.5 ? 0 : 1 } : { kind: 'take', index: null };
+    case 'raven':
+      return { kind: 'pick', target: rng() < 0.8 ? pickFrom(prompt.options) : null };
+    case 'piper': {
+      const a = pickFrom(prompt.options);
+      const b = pickFrom(prompt.options.filter((x) => x !== a));
+      return { kind: 'charm', a, b: prompt.options.length > 1 ? b : undefined };
+    }
+    // One night
+    case 'lone':
+    case 'drink':
+      return { kind: 'center', index: Math.floor(rng() * 3) };
+    case 'look':
+      return rng() < 0.7 ? { kind: 'pick', target: pickFrom(prompt.options) } : { kind: 'center', indices: rng() < 0.5 ? [0, 1] : [1, 2] };
+    case 'rob':
+      return { kind: 'pick', target: pickFrom(prompt.options) };
+    case 'swap': {
+      const a = pickFrom(prompt.options);
+      const b = pickFrom(prompt.options.filter((x) => x !== a));
+      return a && b ? { kind: 'pair', a, b } : null;
+    }
     default: {
       const target = pickFrom(prompt.options);
       return target ? { kind: 'pick', target } : null;

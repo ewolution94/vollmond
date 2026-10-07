@@ -20,7 +20,7 @@ import {
   AVATAR, DEBATE_CHOICES, DEFAULT_SETTINGS, FIRST_NIGHT, GameError, LIMITS, MAX_BOTS, MODES, NIGHT_CHOICES,
   REVEAL, RuleError, SEER, TIES, VOTES, WHERE, catalogue,
 } from './game.mjs';
-import { MIN_PLAYERS } from './roles.mjs';
+import { MIN_PLAYERS, ONE_NIGHT } from './roles.mjs';
 
 const MAX_BODY = 4096;
 /** Cloudflare drops a stream that's quiet for 100 s. */
@@ -110,6 +110,7 @@ export function createApi({ games }) {
         json(res, 200, {
           roles: catalogue(),
           minPlayers: MIN_PLAYERS,
+          oneNight: ONE_NIGHT,
           maxPlayers: LIMITS.players,
           maxBots: MAX_BOTS,
           avatar: AVATAR,

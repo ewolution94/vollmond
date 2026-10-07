@@ -12,21 +12,28 @@ nobody has to run the game. On a video call or at one table. Live at
   screen and sees the whole village beside their card, and sounds play on every device; or *at one
   table*, where phones keep their card face down until held, stay silent, and a big screen tells the
   story.
-- **Two modes:** Classic (nights and days until a side wins) and Quick (30-second nights, 2-minute
-  debates, the core roles, no Captain).
-- **Ten roles**, each a woodcut drawn for the game (below): Werewolf, Villager, Seer, Witch, Hunter,
-  Cupid, Guard, Little Girl, Village Idiot and Elder, plus the Captain, a title the village elects on
-  day one (its vote counts twice and breaks ties; dying, it names a successor).
+- **Three modes:** Classic (nights and days until a side wins), Quick (30-second nights, 2-minute
+  debates, the core roles, no Captain) and One night (3 to 10 people, about ten minutes: one night in
+  which cards change hands, one debate, one secret vote, three cards in the middle; its own engine).
+- **32 roles**, each a woodcut drawn for the game (below). Classic and Quick: Werewolf, Villager,
+  Seer, Witch, Hunter, Guard; Classic adds Cupid, Little Girl, Village Idiot, Elder, Thief, Wild Child,
+  Two Sisters, Three Brothers, Fox, Bear Tamer, Raven, Rusty Knight, Scapegoat, Stuttering Judge, Big
+  Bad Wolf, Wolf Father, White Werewolf, Piper and Angel (the last three win alone). One night plays
+  Werewolf, Villager, Seer, Hunter and its own Minion, Robber, Troublemaker, Drunk, Insomniac, Mason
+  and Tanner. Plus the Captain, a title the village elects on day one (its vote counts twice and
+  breaks ties; dying, it names a successor).
 - **The deck** is suggested for the table (one wolf up to six players, two up to eleven, three up to
-  sixteen, four beyond; a special role joins at each size, from the Seer at five to the Elder at
-  twelve), or built by hand with a needle showing which side it favours. A secret deck hides even
-  the list of roles.
+  sixteen, four beyond; a special role joins at each size, from the Seer at five to the Piper at
+  twenty), or built by hand from the mode's cards with a needle showing which side it favours.
+  Sisters, Brothers and Masons come as a set; a Thief adds two cards to the deck. A secret deck hides
+  even the list of roles.
 - **The host's rules:** the night and debate clocks, a card shown on death (the card, only its side,
   or nothing), open or secret votes, a tie (nobody dies, or a runoff), the Captain, when the wolves win
   (at parity, or only when the village is gone), a calm first night, what the Seer sees (the card or
   only the side), whether the Witch may save herself, and whether the dead see everything.
-- **A night:** everyone acts at once, in up to three steps (dusk for Cupid on the first night; the
-  night for the wolves, the Seer, the Guard and the Little Girl; the witching hour for the Witch). Every
+- **A night:** everyone acts at once, in up to four steps (on the first night the Thief, then dusk
+  for Cupid and the Wild Child; the night for the wolves, the Seer, the Guard, the Little Girl, the
+  Fox, the Raven and the Piper; the witching hour for the Witch). Every
   player has something to tap, so no screen gives a role away: villagers name a suspect, trust
   someone, or guess who was attacked. The wolves see each other's picks live and can whisper.
 - **A day:** dawn announces the night's dead (and turns their cards over), the village debates until
@@ -115,6 +122,7 @@ This mirrors Schätzle and Aale Spiele:
 ```
 server/server.mjs         static files + security headers, wires the rest; no dependencies
 server/rules.mjs          the game: phases, roles, resolution, wins, each player's view (no I/O)
+server/onenight.mjs       One night's engine: the same functions, its own night, vote and wins
 server/roles.mjs          the role catalogue, weights, the suggested decks
 server/game.mjs           villages, players, seats, settings, timers, bots around the rules
 server/bots.mjs           the bots' moves

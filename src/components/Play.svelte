@@ -4,6 +4,7 @@
   the action comes first. The big moments (night falls, dawn, the verdict) play over it all.
 -->
 <script lang="ts">
+  import { isDark, phaseTitle } from '../lib/phase';
   import { onMount } from 'svelte';
   import type { Game, View } from '../lib/api';
   import { ApiError } from '../lib/api';
@@ -20,9 +21,8 @@
 
   const isHost = $derived(view.host === room.seat.player);
   const me = $derived(game.me);
-  const NIGHT = new Set(['dusk', 'night', 'witch']);
-  const night = $derived(NIGHT.has(game.phase));
-  const title = $derived(tk(`phase:${game.phase}`, { n: game.phase === 'debate' ? game.day : game.night }));
+  const night = $derived(isDark(game));
+  const title = $derived(phaseTitle(game));
   const line = $derived(narrate(view));
 
   // The clock ticks here, once a second, for the ring and the stage.
@@ -87,8 +87,8 @@
       </div>
       <h1 class="display">{title}</h1>
       {#if line}<p class="line">{line}</p>{/if}
-      {#if view.settings.where === 'call' && (game.phase === 'dusk' || (game.phase === 'night' && !game.deck?.cupid) || game.phase === 'dawn')}
-        <p class="mics">{game.phase === 'dawn' ? t('micsOn') : t('micsOff')}</p>
+      {#if view.settings.where === 'call' && (night || game.phase === 'dawn' || (game.mode === 'onenight' && game.phase === 'debate'))}
+        <p class="mics">{night ? t('micsOff') : t('micsOn')}</p>
       {/if}
       {#if isHost}
         <div class="host">

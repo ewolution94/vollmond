@@ -8,6 +8,7 @@
   import { ApiError } from '../lib/api';
   import type { Room } from '../lib/room.svelte';
   import { errorText, t, tk } from '../lib/i18n.svelte';
+  import { listNames } from '../lib/narrate';
   import { play } from '../lib/sound';
   import { prefs } from '../lib/prefs.svelte';
   import Card from './Card.svelte';
@@ -20,15 +21,85 @@
   const name = (id: string | null | undefined) => view.players.find((p) => p.id === id)?.name ?? '?';
   const player = (id: string) => view.players.find((p) => p.id === id);
 
+  const names = (ids: string[] | undefined) => listNames((ids ?? []).map(name));
+  const others = (ids: string[] | undefined) => names((ids ?? []).filter((id) => id !== me?.id));
+  const role = (id: string | null | undefined) => (id ? tk(`role:${id}`) : '?');
+  const oneNight = $derived(game.mode === 'onenight');
+  /** Roles that work differently in One night. */
+  const ONE_NIGHT_ABILITY = new Set(['werewolf', 'seer', 'hunter']);
+
   const notes = $derived.by(() => {
     if (!me) return [];
     const out: string[] = [];
     for (const k of me.knowledge) {
-      if (k.type === 'seen') out.push(k.role ? t('know:seen', { n: k.night, name: name(k.target), role: tk(`role:${k.role}`) }) : t('know:seenSide', { n: k.night, name: name(k.target), side: tk(`side:${k.side}`) }));
-      if (k.type === 'lover') out.push(t('know:lover', { name: name(k.partner) }) + (k.side !== me.side ? ` ${t('know:loverMixed')}` : ''));
-      if (k.type === 'bound') out.push(t('know:bound', { a: name(k.a), b: name(k.b) }));
-      if (k.type === 'glimpse') out.push((k.wolf ? t('know:glimpse', { n: k.night, name: name(k.wolf) }) : t('know:glimpseNone', { n: k.night })) + (k.caught ? ` ${t('know:caught')}` : ''));
-      if (k.type === 'spotted') out.push(t('know:spotted', { n: k.night, name: name(k.girl) }));
+      const n = k.night ?? 0;
+      switch (k.type) {
+        case 'seen':
+          if (k.card) out.push(t('know:seenOne', { name: name(k.target), role: role(k.card) }));
+          else out.push(k.role ? t('know:seen', { n, name: name(k.target), role: role(k.role) }) : t('know:seenSide', { n, name: name(k.target), side: tk(`side:${k.side}`) }));
+          break;
+        case 'lover':
+          out.push(t('know:lover', { name: name(k.partner) }) + (k.side !== me.side ? ` ${t('know:loverMixed')}` : ''));
+          break;
+        case 'bound':
+          out.push(t('know:bound', { a: name(k.a), b: name(k.b) }));
+          break;
+        case 'glimpse':
+          out.push((k.wolf ? t('know:glimpse', { n, name: name(k.wolf) }) : t('know:glimpseNone', { n })) + (k.caught ? ` ${t('know:caught')}` : ''));
+          break;
+        case 'spotted':
+          out.push(t('know:spotted', { n, name: name(k.girl) }));
+          break;
+        case 'took':
+          out.push(k.role ? t('know:took', { role: role(k.role) }) : t('know:kept'));
+          break;
+        case 'model':
+          out.push(t('know:model', { name: name(k.target) }));
+          break;
+        case 'turned':
+          out.push(t('know:turned'));
+          break;
+        case 'infected':
+          out.push(t('know:infected'));
+          break;
+        case 'siblings':
+          out.push(t('know:siblings', { names: others(k.ids) }));
+          break;
+        case 'fox':
+          out.push(t('know:fox', { n, names: names(k.ids), found: t(k.found ? 'know:foxYes' : 'know:foxNo') }));
+          break;
+        case 'charmed':
+          out.push(t('know:charmed', { names: names(k.ids) }));
+          break;
+        // One night
+        case 'pack':
+          if (k.ids) out.push(k.ids.length > 1 ? t('know:packOne', { names: names(k.ids) }) : t('know:lone'));
+          break;
+        case 'middle':
+          out.push(t('know:middle', { n: (k.index ?? 0) + 1, role: role(k.card) }));
+          break;
+        case 'middle2':
+          out.push(t('know:middle2', { roles: listNames((k.cards ?? []).map(role)) }));
+          break;
+        case 'wolves':
+          out.push(k.ids?.length ? t('know:wolves', { names: names(k.ids) }) : t('know:wolvesNone'));
+          break;
+        case 'masons':
+          out.push(t('know:masons', { names: names(k.ids) }));
+          break;
+        case 'robbed':
+          out.push(t('know:robbed', { name: name(k.target), role: role(k.card) }));
+          break;
+        case 'swapped':
+          out.push(t('know:swapped', { a: name(k.a), b: name(k.b) }));
+          break;
+        case 'drank':
+          out.push(t('know:drank', { n: (k.index ?? 0) + 1 }));
+          break;
+        case 'woke':
+          out.push(t('know:woke', { role: role(k.card) }));
+          break;
+      }
     }
     if (me.potions) out.push(t('know:potions', { heal: me.potions.heal ? t('full') : t('empty'), poison: me.potions.poison ? t('full') : t('empty') }));
     return out;
@@ -68,8 +139,13 @@
           <p class="hint">{t('holdToPeek')}</p>
         {:else}
           <p class="role display">{tk(`role:${me.role}`)}</p>
-          <p class="ability">{tk(`ability:${me.role}`)}</p>
+          <p class="ability">{oneNight && ONE_NIGHT_ABILITY.has(me.role) ? tk(`ability1:${me.role}`) : tk(`ability:${me.role}`)}</p>
           <p class="hint">{t('tapToTurn')}</p>
+        {/if}
+        {#if oneNight && game.phase !== 'end'}
+          <p class="hint changed">{['deal', 'night'].includes(game.phase) ? t('know:mayChange') : t('know:mayHaveChanged')}</p>
+        {:else if oneNight && me.final}
+          <p class="hint changed">{t('endedAs', { role: role(me.final) })}</p>
         {/if}
       </div>
     </div>
@@ -142,6 +218,10 @@
   .hint {
     color: var(--ink-3);
     font-size: 13px;
+  }
+  .changed {
+    color: var(--pink-text);
+    font-weight: 600;
   }
   .notes ul,
   .wolves,

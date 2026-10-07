@@ -8,15 +8,16 @@
 // Phases: lobby → game → (rematch) lobby.
 
 import { randomBytes, randomInt } from 'node:crypto';
-import { MIN_PLAYERS, ROLES, ROLE_IDS, balance, cleanDeck, deckProblem, deckSize, suggestedDeck } from './roles.mjs';
-import { RuleError, act as ruleAct, advance, control, createGame, setAway, view as ruleView } from './rules.mjs';
+import { ROLES, ROLE_IDS, balance, cardsFor, cleanDeck, deckProblem, deckSize, playersRange, suggestedDeck } from './roles.mjs';
+import * as classic from './rules.mjs';
+import * as onenight from './onenight.mjs';
 import { botMove, botName } from './bots.mjs';
 
 /** Room codes have no vowels, so no code spells a word. */
 const CODE_LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';
 export const CODE = /^[BCDFGHJKLMNPQRSTVWXZ]{4}$/;
 
-export const MODES = ['classic', 'quick'];
+export const MODES = ['classic', 'quick', 'onenight'];
 export const WHERE = ['call', 'table'];
 export const NIGHT_CHOICES = [20, 30, 45, 60];
 /** Seconds of debate; 0 is open (it ends when most want to vote, or the host moves on). */
@@ -63,8 +64,20 @@ export const DEFAULT_SETTINGS = Object.freeze({
   ghosts: true,
 });
 
-/** A quick game's defaults, set when the host switches to it. */
-const QUICK = { night: 30, debate: 120, captain: false, deck: null, reveal: 'role' };
+/** A mode's defaults, set when the host switches to it; every switch starts from the suggested deck. */
+const MODE_DEFAULTS = {
+  classic: { night: 45, debate: 180, deck: null },
+  quick: { night: 30, debate: 120, captain: false, deck: null, reveal: 'role' },
+  onenight: { night: 30, debate: 300, deck: null },
+};
+const { RuleError } = classic;
+/** The rules a game plays by: One night has its own engine with the same functions. */
+const R = (g) => (g.mode === 'onenight' ? onenight : classic);
+const ruleView = (g, id) => R(g).view(g, id);
+const ruleAct = (g, id, move, now) => R(g).act(g, id, move, now);
+const advance = (g, now) => R(g).advance(g, now);
+const control = (g, command, now) => R(g).control(g, command, now);
+const setAway = (g, id, away, now) => R(g).setAway(g, id, away, now);
 
 export class GameError extends Error {
   /** @param {string} code  @param {number} [status] */
@@ -169,9 +182,12 @@ export function createGames({
   /** The deck the next game would use, and what's wrong with it. */
   function lobbyDeck(r) {
     const n = present(r).length;
-    const suggested = suggestedDeck(n, r.settings.mode);
+    const mode = r.settings.mode;
+    const [min, max] = playersRange(mode);
+    const suggested = suggestedDeck(n, mode);
     const deck = r.settings.deck ?? suggested;
-    return { suggested, deck, balance: balance(deck), size: deckSize(deck), problem: n < MIN_PLAYERS ? 'too-few' : deckProblem(deck, n) };
+    const problem = n < min ? 'too-few' : n > max ? 'too-many' : deckProblem(deck, n, mode);
+    return { suggested, deck, balance: balance(deck), size: deckSize(deck), cards: cardsFor(deck, n, mode), min, max, problem };
   }
 
   /** What one page sees: the room, and the game as that player (or the big screen) may see it. */
@@ -437,7 +453,8 @@ export function createGames({
           const { deck, problem } = lobbyDeck(r);
           if (problem) throw new GameError(problem, 409);
           const people = present(r);
-          r.game = createGame({ players: people, settings: r.settings, deck, rng, now: clock.now() });
+          const create = r.settings.mode === 'onenight' ? onenight.createOneNight : classic.createGame;
+          r.game = create({ players: people, settings: r.settings, deck, rng, now: clock.now() });
           for (const q of people) if (!q.bot && q.online === 0) setAway(r.game, q.id, true, clock.now());
           r.phase = 'game';
           r.botPending.clear();
@@ -513,6 +530,7 @@ export function createGames({
 }
 
 export { RuleError };
+export const MIN_PLAYERS = playersRange('classic')[0];
 
 /** A display name: printable, single-spaced, at most LIMITS.name characters. */
 export function cleanName(raw) {
@@ -551,15 +569,15 @@ export function mergeSettings(current, body) {
   pick('firstNight', FIRST_NIGHT);
   pick('seer', SEER);
   for (const key of ['mystery', 'captain', 'parity', 'witchSelf', 'ghosts']) if (typeof body?.[key] === 'boolean') next[key] = body[key];
-  if (body && 'deck' in body) next.deck = body.deck === null ? null : cleanDeck(body.deck);
-  // Switching to a quick game sets its clocks and core deck, unless the same change says otherwise.
-  if (next.mode === 'quick' && current.mode !== 'quick') {
-    for (const [key, value] of Object.entries(QUICK)) if (!(body && key in body)) next[key] = value;
+  if (body && 'deck' in body) next.deck = body.deck === null ? null : cleanDeck(body.deck, next.mode);
+  // Switching modes sets the mode's clocks and its suggested deck, unless the same change says otherwise.
+  if (next.mode !== current.mode) {
+    for (const [key, value] of Object.entries(MODE_DEFAULTS[next.mode])) if (!(body && key in body)) next[key] = value;
   }
   return next;
 }
 
 /** The catalogue as the lobby needs it. */
 export function catalogue() {
-  return ROLE_IDS.map((id) => ({ id, side: ROLES[id].side, weight: ROLES[id].weight, max: ROLES[id].max }));
+  return ROLE_IDS.map((id) => ({ id, side: ROLES[id].side, weight: ROLES[id].weight, max: ROLES[id].max, exact: ROLES[id].exact ?? null, modes: ROLES[id].modes }));
 }

@@ -156,3 +156,46 @@ test('a kicked player and someone leaving mid-game are skipped', () => {
   for (let i = 0; i < 400 && games.view(host.code).game?.phase !== 'end'; i++) clock.run(5_000);
   assert.equal(games.view(host.code).game.phase, 'end');
 });
+
+test('whole games with the release-2 roles play themselves to a winner', () => {
+  // 13 players and the Thief's two: 15 cards.
+  const deck = { werewolf: 1, bigwolf: 1, wolffather: 1, whitewolf: 1, thief: 1, wildchild: 1, fox: 1, bear: 1, raven: 1, knight: 1, scapegoat: 1, judge: 1, piper: 1, angel: 1, seer: 1 };
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const { clock, games, host, act } = setup(seed);
+    for (let i = 0; i < 12; i++) act('bot');
+    act('settings', { deck, debate: 60 });
+    assert.equal(games.view(host.code).lobby.problem, null, `seed ${seed}: ${games.view(host.code).lobby.problem}`);
+    act('start');
+    for (let i = 0; i < 600 && games.view(host.code).game?.phase !== 'end'; i++) clock.run(5_000);
+    const v = games.view(host.code, host.player);
+    assert.equal(v.game.phase, 'end', `seed ${seed}`);
+    assert.ok(['village', 'wolves', 'lovers', 'piper', 'angel', 'whitewolf', 'none'].includes(v.game.winner.side), v.game.winner.side);
+  }
+});
+
+test('One night plays itself with bots: a night, a debate, a vote, every card shown', () => {
+  for (const seed of [1, 2, 3, 4]) {
+    const { clock, games, host, act } = setup(seed);
+    for (let i = 0; i < 5; i++) act('bot');
+    act('settings', { mode: 'onenight', debate: 60 });
+    const lobby = games.view(host.code).lobby;
+    assert.equal(lobby.problem, null);
+    assert.equal(lobby.cards, 9);
+    act('start');
+    assert.equal(games.view(host.code, host.player).game.mode, 'onenight');
+    for (let i = 0; i < 200 && games.view(host.code).game?.phase !== 'end'; i++) clock.run(5_000);
+    const v = games.view(host.code);
+    assert.equal(v.game.phase, 'end', `seed ${seed}`);
+    assert.ok(v.game.seats.every((s) => s.role));
+    assert.equal(v.game.center.now.length, 3);
+  }
+});
+
+test('One night refuses a table too big or too small', () => {
+  const { games, host, act } = setup();
+  act('settings', { mode: 'onenight' });
+  act('bot');
+  assert.equal(games.view(host.code).lobby.problem, 'too-few');
+  for (let i = 0; i < 10; i++) act('bot');
+  assert.equal(games.view(host.code).lobby.problem, 'too-many');
+});

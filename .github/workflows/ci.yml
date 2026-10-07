@@ -52,7 +52,9 @@ jobs:
           curl -sf $base/manifest.webmanifest | grep -q '"name": "Vollmond"'
           curl -sf -o /dev/null $base/sw.js
           curl -sf -o /dev/null $base/og.png
-          for card in werewolf villager seer witch hunter cupid guard girl idiot elder back; do curl -sf -o /dev/null $base/cards/$card.svg; done
+          # Every role's card (the catalogue in /api/config) and the back.
+          for card in $(curl -sf $base/api/config | node -pe 'JSON.parse(require("fs").readFileSync(0)).roles.map((r) => r.id).join(" ")') back; do curl -sf -o /dev/null $base/cards/$card.svg || { echo "no card: $card"; exit 1; }; done
+          test "$(curl -sf $base/api/config | node -pe 'JSON.parse(require("fs").readFileSync(0)).roles.length')" = 32
           asset=$(curl -s $base/ | grep -o '/assets/[^"]*\.js' | head -1)
           curl -sI "$base$asset" | grep -qi 'cache-control: public, max-age=31536000, immutable'
           test "$(curl -s -o /dev/null -w '%{http_code}' $base/assets/missing.js)" = 404
@@ -71,6 +73,16 @@ jobs:
           curl -s -N --max-time 2 "$base/api/rooms/$code/events?p=$me" | grep -q '"me":{"id":"'$me'","role":"'
           # The big screen's stream (no p) knows no card.
           if curl -s -N --max-time 2 "$base/api/rooms/$code/events" | grep -q '"role":"[a-z]'; then echo "the big screen saw a card"; exit 1; fi
+          # One night: three players, its own engine, and still no card on the big screen.
+          room=$(curl -sf -X POST -H 'content-type: application/json' --data '{"name":"CI"}' $base/api/rooms)
+          code=$(echo "$room" | node -pe 'JSON.parse(require("fs").readFileSync(0)).code')
+          token=$(echo "$room" | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+          me=$(echo "$room" | node -pe 'JSON.parse(require("fs").readFileSync(0)).player')
+          curl -sf -X POST -H 'content-type: application/json' -H "x-vollmond-token: $token" --data '{"mode":"onenight"}' $base/api/rooms/$code/settings
+          for _ in 1 2; do curl -sf -X POST -H 'content-type: application/json' -H "x-vollmond-token: $token" --data '{}' $base/api/rooms/$code/bot; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -H "x-vollmond-token: $token" --data '{}' $base/api/rooms/$code/start)" = 204
+          curl -s -N --max-time 2 "$base/api/rooms/$code/events?p=$me" | grep -q '"mode":"onenight"'
+          if curl -s -N --max-time 2 "$base/api/rooms/$code/events" | grep -q '"role":"[a-z]'; then echo "the big screen saw a One night card"; exit 1; fi
           # The Census forwarder is wired in; without VOLLMOND_CENSUS it answers locally.
           test "$(curl -s -o /dev/null -w '%{http_code}' $base/_e.js)" = 200
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST --data '{}' $base/_e)" = 204

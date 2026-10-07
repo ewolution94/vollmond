@@ -20,7 +20,6 @@
   const isHost = $derived(view.host === room.seat.player);
   const host = $derived(view.players.find((p) => p.id === view.host));
   const url = $derived(`${location.origin}/${view.code}`);
-  const minPlayers = $derived(config?.minPlayers ?? 5);
 
   // ---- settings that answer the tap
   let pending: Partial<Settings> = $state({});
@@ -71,21 +70,31 @@
   const suggested = $derived(view.lobby?.suggested ?? {});
   const deck: Deck = $derived(settings.deck ?? suggested);
   const own = $derived(settings.deck !== null);
-  const weights = $derived(Object.fromEntries((config?.roles ?? []).map((r) => [r.id, r.weight])) as Record<string, number>);
-  const maxOf = $derived(Object.fromEntries((config?.roles ?? []).map((r) => [r.id, r.max])) as Record<string, number>);
-  const lean = $derived(Object.entries(deck).reduce((s, [id, c]) => s + (weights[id] ?? 0) * (c ?? 0), 0));
+  const catalogue = $derived(Object.fromEntries((config?.roles ?? []).map((r) => [r.id, r])) as Partial<Record<RoleId, Config['roles'][number]>>);
+  const lean = $derived(Object.entries(deck).reduce((s, [id, c]) => s + (catalogue[id as RoleId]?.weight ?? 0) * (c ?? 0), 0));
   const size = $derived(Object.values(deck).reduce((a, b) => a + (b ?? 0), 0));
   const leanKey = $derived(lean > 3 ? 'balance:village' : lean < -3 ? 'balance:wolves' : 'balance:fair');
+  /** The cards this mode plays with, in the deck's order. */
+  const playable = $derived(ROLE_ORDER.filter((id) => catalogue[id]?.modes.includes(settings.mode) ?? true));
+  const oneNight = $derived(settings.mode === 'onenight');
+  // The server judges the deck (server/roles.mjs → deckProblem); while a change is on its way, Start waits.
+  const syncing = $derived(Object.keys(pending).length > 0);
   const problem = $derived.by(() => {
-    if (n < minPlayers) return t('problem:too-few', { n: minPlayers });
-    if (size !== n) return t('problem:deck-size');
-    if (!(deck.werewolf ?? 0)) return t('problem:no-wolves');
-    if ((deck.werewolf ?? 0) * 2 >= n) return t('problem:too-many-wolves');
-    return '';
+    const code = view.lobby?.problem;
+    if (!code) return '';
+    if (code === 'too-few') return t('problem:too-few', { n: view.lobby?.min ?? config?.minPlayers ?? 5 });
+    if (code === 'too-many') return t('problem:too-many', { n: view.lobby?.max ?? 0 });
+    return tk(`problem:${code}`);
   });
+  const countLine = $derived(
+    oneNight ? t('deckCountMiddle', { n: size, m: n }) : deck.thief ? t('deckCountThief', { n: size, m: n }) : t('deckCount', { n: size, m: n }),
+  );
 
+  /** Sisters, Brothers and Masons come as a set: one step adds or takes the whole set. */
   function count(id: RoleId, delta: number) {
-    const next = { ...deck, [id]: Math.max(0, Math.min(maxOf[id] ?? 1, (deck[id] ?? 0) + delta)) };
+    const role = catalogue[id];
+    const step = role?.exact ?? 1;
+    const next = { ...deck, [id]: Math.max(0, Math.min(role?.max ?? 1, (deck[id] ?? 0) + delta * step)) };
     if (!next[id]) delete next[id];
     set({ deck: next });
   }
@@ -178,7 +187,7 @@
           label={t('mode')}
           value={settings.mode}
           disabled={!isHost}
-          options={seg(config?.choices.mode ?? ['classic', 'quick'], (v) => tk(`mode:${v}`))}
+          options={seg(config?.choices.mode ?? ['classic', 'quick', 'onenight'], (v) => tk(`mode:${v}`))}
           onchange={(e) => set({ mode: e.detail.value as Settings['mode'] })}
         ></ewo-segmented>
         <p class="hint">{tk(`modeHint:${settings.mode}`)}</p>
@@ -215,13 +224,13 @@
 
         {#if own && isHost}
           <ul class="builder">
-            {#each ROLE_ORDER as id (id)}
+            {#each playable as id (id)}
               <li>
                 <span class="mini"><Card role={id} width="44px" /></span>
                 <span class="role">{tk(`role:${id}`)}</span>
                 <button class="step" onclick={() => count(id, -1)} disabled={!(deck[id] ?? 0)} aria-label="−">−</button>
                 <span class="count" class:zero={!(deck[id] ?? 0)}>{deck[id] ?? 0}</span>
-                <button class="step" onclick={() => count(id, 1)} disabled={(deck[id] ?? 0) >= (maxOf[id] ?? 1)} aria-label="+">+</button>
+                <button class="step" onclick={() => count(id, 1)} disabled={(deck[id] ?? 0) >= (catalogue[id]?.max ?? 1)} aria-label="+">+</button>
               </li>
             {/each}
           </ul>
@@ -242,7 +251,7 @@
           <span class="track"><span class="needle"></span></span>
           <span class="end">{t('side:village')}</span>
         </div>
-        <p class="hint center">{t('deckCount', { n: size, m: n })} · {tk(leanKey)}</p>
+        <p class="hint center">{countLine} · {tk(leanKey)}</p>
 
         <ewo-switch row tone="accent" checked={settings.mystery} disabled={!isHost} onchange={(e) => set({ mystery: e.detail.checked })}>
           {t('mystery')}<span slot="hint">{t('mysteryHint')}</span>
@@ -260,6 +269,7 @@
           <ewo-segmented tone="accent" size="sm" label={t('debateClock')} value={String(settings.debate)} disabled={!isHost}
             options={seg(config?.choices.debate ?? [60, 120, 180, 300, 480, 0], (v) => clock(Number(v)))}
             onchange={(e) => set({ debate: Number(e.detail.value) })}></ewo-segmented>
+          {#if !oneNight}
           {#each [['reveal', ['role', 'side', 'none']], ['votes', ['open', 'secret']], ['tie', ['none', 'runoff']], ['firstNight', ['hunt', 'calm']], ['seer', ['role', 'side']]] as const as [key, values] (key)}
             <span>{t(key as Key)}</span>
             <ewo-segmented tone="accent" size="sm" label={t(key as Key)} value={String(settings[key])} disabled={!isHost}
@@ -270,19 +280,24 @@
           <ewo-segmented tone="accent" size="sm" label={t('parity')} value={settings.parity ? 'on' : 'off'} disabled={!isHost}
             options={seg(['on', 'off'], (v) => tk(`parity:${v}`))}
             onchange={(e) => set({ parity: e.detail.value === 'on' })}></ewo-segmented>
+          {/if}
         </div>
-        <ewo-switch row tone="accent" checked={settings.captain} disabled={!isHost} onchange={(e) => set({ captain: e.detail.checked })}>
-          {t('captain')}<span slot="hint">{t('captainHint')}</span>
-        </ewo-switch>
-        <ewo-switch row tone="accent" checked={settings.witchSelf} disabled={!isHost} onchange={(e) => set({ witchSelf: e.detail.checked })}>{t('witchSelf')}</ewo-switch>
-        <ewo-switch row tone="accent" checked={settings.ghosts} disabled={!isHost} onchange={(e) => set({ ghosts: e.detail.checked })}>{t('ghosts')}</ewo-switch>
+        {#if oneNight}
+          <p class="hint">{t('oneNightRules')}</p>
+        {:else}
+          <ewo-switch row tone="accent" checked={settings.captain} disabled={!isHost} onchange={(e) => set({ captain: e.detail.checked })}>
+            {t('captain')}<span slot="hint">{t('captainHint')}</span>
+          </ewo-switch>
+          <ewo-switch row tone="accent" checked={settings.witchSelf} disabled={!isHost} onchange={(e) => set({ witchSelf: e.detail.checked })}>{t('witchSelf')}</ewo-switch>
+          <ewo-switch row tone="accent" checked={settings.ghosts} disabled={!isHost} onchange={(e) => set({ ghosts: e.detail.checked })}>{t('ghosts')}</ewo-switch>
+        {/if}
       </details>
     </div>
   </div>
 
   <footer class="go">
     {#if isHost}
-      <button class="btn primary big" onclick={start} disabled={Boolean(problem) || starting}>{t('start')}</button>
+      <button class="btn primary big" onclick={start} disabled={Boolean(problem) || syncing || starting}>{t('start')}</button>
       {#if problem}<p class="hint center">{problem}</p>{/if}
     {:else}
       <p class="wait">{t('waitHost', { name: host?.name ?? '…' })}</p>

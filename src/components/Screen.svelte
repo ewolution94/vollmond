@@ -6,6 +6,7 @@
   audio only after a tap).
 -->
 <script lang="ts">
+  import { isDark, phaseTitle } from '../lib/phase';
   import { onDestroy, onMount } from 'svelte';
   import { Room } from '../lib/room.svelte';
   import { t, tk } from '../lib/i18n.svelte';
@@ -54,9 +55,8 @@
     document.documentElement.classList.remove('night');
   });
 
-  const NIGHT = new Set(['dusk', 'night', 'witch']);
   $effect(() => {
-    document.documentElement.classList.toggle('night', Boolean(game && NIGHT.has(game.phase)));
+    document.documentElement.classList.toggle('night', isDark(game));
   });
 
   const SOUND: Partial<Record<string, Sound>> = { dusk: 'night', night: 'night', dawn: 'dawn', vote: 'vote', runoff: 'vote', verdict: 'death', hunter: 'death', end: 'win' };
@@ -74,7 +74,7 @@
   });
 
   const left = $derived(game?.deadline ? room.left(game.deadline, now) : 0);
-  const title = $derived(game ? tk(`phase:${game.phase}`, { n: game.phase === 'debate' ? game.day : game.night }) : '');
+  const title = $derived(game ? phaseTitle(game) : '');
 </script>
 
 <div class="screen">
@@ -106,10 +106,10 @@
   {:else}
     <section class="stage">
       <div class="side">
-        <p class="band">{NIGHT.has(game.phase) ? t('night', { n: game.night }) : game.day ? t('day', { n: game.day }) : view.village}</p>
+        <p class="band">{isDark(game) ? t('night', { n: game.night }) : game.day ? t('day', { n: game.day }) : view.village}</p>
         <h1 class="display">{title}</h1>
         <p class="line">{narrate(view)}</p>
-        {#if game.progress && NIGHT.has(game.phase)}<p class="label">{t('done', game.progress)}</p>{/if}
+        {#if game.progress && isDark(game)}<p class="label">{t('done', game.progress)}</p>{/if}
         {#if game.paused !== null}<p class="band">{t('paused')}</p>{/if}
       </div>
       <div class="ring"><Village {view} {game} big {left} /></div>

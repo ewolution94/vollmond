@@ -2,8 +2,10 @@
   The village as a ring of coats of arms around the moon (at night) or the sun (by day), with the
   clock in the middle. The dead are struck through and show their card when it's known; the Captain
   wears a crown; open votes are drawn as pink arrows. A seat you may pick right now is tappable.
+  The Raven's mark (+2) shows by day; the charmed see the Piper's note on everyone charmed.
 -->
 <script lang="ts">
+  import { isDark } from '../lib/phase';
   import type { Game, View } from '../lib/api';
   import { t, tk } from '../lib/i18n.svelte';
   import Shield from './Shield.svelte';
@@ -30,8 +32,7 @@
     left?: number;
   } = $props();
 
-  const NIGHT = new Set(['dusk', 'night', 'witch']);
-  const night = $derived(NIGHT.has(game.phase));
+  const night = $derived(isDark(game));
   const n = $derived(game.seats.length);
   const R = 40;
   const place = (i: number) => {
@@ -50,6 +51,9 @@
   });
   const lovers = $derived(new Set(game.me?.lover ? [game.me.id, game.me.lover] : []));
   const pack = $derived(new Set((game.me?.pack ?? []).map((p) => p.id)));
+  /** Who the charmed know to be charmed: their latest note. */
+  const charmed = $derived(new Set(game.me?.knowledge.findLast((k) => k.type === 'charmed')?.ids ?? []));
+  const day = $derived(['debate', 'vote', 'runoff', 'verdict'].includes(game.phase));
 
   /** An arrow from voter to target, bent a little toward the middle, stopping short of the arms. */
   function arrow(from: { x: number; y: number }, to: { x: number; y: number }) {
@@ -113,6 +117,8 @@
         {#if game.captain === s.seat.id}<span class="crown" title={t('captainBadge')}>♛</span>{/if}
         {#if lovers.has(s.seat.id)}<span class="mark love">♥</span>{/if}
         {#if pack.has(s.seat.id) && s.seat.id !== me}<span class="mark wolf">◆</span>{/if}
+        {#if charmed.has(s.seat.id) && s.seat.alive}<span class="mark tune" title={t('role:piper')}>♪</span>{/if}
+        {#if day && game.raven === s.seat.id}<span class="raven" title={t('role:raven')}>+2</span>{/if}
         {#if received[s.seat.id]}<span class="count">{received[s.seat.id]}</span>{/if}
         {#if s.seat.acted}<span class="tick">✓</span>{/if}
       </span>
@@ -291,6 +297,23 @@
     font-size: calc(var(--size) * 0.3);
     line-height: 1;
     color: var(--pink-text);
+  }
+  .mark.tune {
+    left: auto;
+    right: -8%;
+    top: auto;
+    bottom: -2%;
+  }
+  .raven {
+    position: absolute;
+    left: -16%;
+    top: -12%;
+    padding: 0 0.6cqw;
+    border-radius: 4px;
+    background: var(--fill-ink);
+    color: var(--on-fill-ink);
+    font: 800 max(10px, 2cqw) / 1.5 var(--ewo-mono);
+    rotate: -8deg;
   }
   .count {
     position: absolute;

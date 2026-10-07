@@ -15,6 +15,17 @@
 
   let { open, onclose }: { open: boolean; onclose: () => void } = $props();
 
+  // The content stays until the sheet has slid away: taken out when `open` turns false, it left the
+  // closing sheet a bare header, a dark box sliding down (the "black box" on close, 2026-10-07).
+  let shown = $state(false);
+  $effect(() => {
+    if (open) shown = true;
+  });
+  function closed() {
+    shown = false;
+    onclose();
+  }
+
   let theme: ThemeChoice = $state(storedTheme());
   onMount(() => onThemeChange(() => (theme = storedTheme())));
 
@@ -35,9 +46,9 @@
   }
 </script>
 
-<ewo-sheet {open} label={t('settings')} oncancel={onclose} onclose={onclose}>
+<ewo-sheet {open} label={t('settings')} oncancel={onclose} onclose={closed}>
   <span slot="heading">{t('settings')}</span>
-  {#if open}
+  {#if shown}
     <section>
       <h3 class="label">{t('general')}</h3>
       <ewo-settings-basics
