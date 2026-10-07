@@ -1,0 +1,283 @@
+/* Folio's shared tokens and fonts (vendor/ewo, from `npm run vendor -- vollmond` in Folio), dressed
+   as the woodcut print the cards are (tools/cards/kit.mjs): two inks, indigo and fluorescent pink, on
+   grainy paper. By day the page is the paper with indigo ink; at night (the dark theme, and every
+   night of a game, whatever the theme) it's the indigo with paper-coloured ink. Folio's tokens are
+   pointed at these, so the settings sheet and the shared controls print in the same inks. */
+@import '../vendor/ewo/tokens/index.css';
+@import '../vendor/ewo/tokens/base.css';
+
+/* Grenze Gotisch (SIL Open Font License, src/fonts/OFL.txt): a blackletter with a modern cut,
+   for names, headings and the narrator. */
+@font-face {
+  font-family: 'Grenze Gotisch';
+  src: url('./fonts/grenze-gotisch-latin.woff2') format('woff2');
+  font-weight: 400 900;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Grenze Gotisch';
+  src: url('./fonts/grenze-gotisch-latin-ext.woff2') format('woff2');
+  font-weight: 400 900;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  --gutter: clamp(16px, 3vw, 40px);
+  --page: 1180px;
+  --bar-h: 60px;
+  --display: 'Grenze Gotisch', 'Iowan Old Style', Georgia, serif;
+
+  /* The inks (fixed: a card is printed the same in both themes). */
+  --indigo: #1f2668;
+  --pink: #ff4d9d;
+  --cream: #f1e8d4;
+  --midnight: #0e1130;
+
+  /* The page, by theme. Text colours clear 4.5:1 on --paper and --paper-2 in both. */
+  --paper: light-dark(#f1e8d4, #0e1130);
+  --paper-2: light-dark(#e8dcc2, #171c47);
+  --paper-3: light-dark(#ded0b2, #20265a);
+  --ink: light-dark(#1f2668, #f1e8d4);
+  --ink-2: light-dark(#3c4280, #cfc8dc);
+  --ink-3: light-dark(#4f548a, #aaa4c2);
+  --line: light-dark(rgb(31 38 104 / 0.2), rgb(241 232 212 / 0.16));
+  --line-2: light-dark(rgb(31 38 104 / 0.1), rgb(241 232 212 / 0.08));
+  /* Pink as text is deepened on paper; as a fill it carries the dark ink (5.8:1). */
+  --pink-text: light-dark(#b3124f, #ff4d9d);
+  --on-pink: #12152e;
+  /* An ink-filled button: indigo with paper text by day, paper with indigo text at night. */
+  --fill-ink: light-dark(#1f2668, #f1e8d4);
+  --on-fill-ink: light-dark(#f1e8d4, #12152e);
+  --wolf: var(--pink-text);
+  --radius: 12px;
+
+  --ewo-bg: var(--paper);
+  --ewo-bg-raised: var(--paper-2);
+  --ewo-bg-sunk: var(--paper-3);
+  --ewo-panel: var(--paper-2);
+  --ewo-fg: var(--ink);
+  --ewo-fg-2: var(--ink-2);
+  --ewo-fg-3: var(--ink-3);
+  --ewo-fg-4: light-dark(rgb(31 38 104 / 0.45), rgb(241 232 212 / 0.4));
+  --ewo-line: var(--line);
+  --ewo-line-2: var(--line-2);
+  --ewo-line-strong: light-dark(rgb(31 38 104 / 0.34), rgb(241 232 212 / 0.3));
+  --ewo-fill: light-dark(rgb(31 38 104 / 0.05), rgb(241 232 212 / 0.05));
+  --ewo-fill-2: light-dark(rgb(31 38 104 / 0.08), rgb(241 232 212 / 0.08));
+  --ewo-fill-3: light-dark(rgb(31 38 104 / 0.13), rgb(241 232 212 / 0.13));
+  --ewo-shadow-color: light-dark(rgb(31 38 104 / 0.18), rgb(0 0 0 / 0.5));
+
+  /* The paper's grain, printed over everything at a whisper (the same turbulence as the cards'). */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35  0 0 0 0 0.27  0 0 0 0 0.18  0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The foil's light follows these (Card.svelte); registered, so the reveal's sweep glides. */
+@property --mx {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 50%;
+}
+@property --my {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 50%;
+}
+
+/* Every night of a game is night on every screen, whatever the theme (Game.svelte sets .night). */
+:root.night,
+:root.night[data-theme] {
+  color-scheme: dark;
+}
+
+html {
+  overflow-x: clip;
+  background: var(--paper);
+  transition: background-color 900ms ease;
+}
+body {
+  background: transparent;
+  font-size: 15px;
+  color: var(--ink);
+}
+/* The grain sits over the page, under nothing that matters: it takes no pointer and no paint time
+   after the first. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background-image: var(--grain);
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+}
+/* On the night page the grain lightens instead (light-dark() takes colours, not numbers). */
+:root.night body::after,
+:root[data-theme='dark'] body::after {
+  opacity: 0.2;
+  mix-blend-mode: soft-light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) body::after {
+    opacity: 0.2;
+    mix-blend-mode: soft-light;
+  }
+}
+
+a {
+  color: inherit;
+}
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- the shared pieces of every screen --------------------------------------------------- */
+
+.display {
+  font-family: var(--display);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+}
+
+/* A plate: a printed panel with the block's hand-cut edge suggested by a double rule. */
+.plate {
+  position: relative;
+  background: var(--paper-2);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.label {
+  font: 600 11px / 1.4 var(--ewo-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+/* The pink band of the cards' side labels. */
+.band {
+  display: inline-block;
+  padding: 3px 9px 2px;
+  background: var(--pink);
+  color: var(--on-pink);
+  font: 700 11px / 1.3 var(--ewo-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--radius);
+  font: 650 16px / 1.2 var(--ewo-sans);
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--ewo-dur-1) var(--ewo-ease);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn:focus-visible,
+.input:focus-visible {
+  outline: 2px solid var(--pink-text);
+  outline-offset: 2px;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* The main action: printed in ink, with the pink plate peeking out off register. */
+.btn.primary {
+  background: var(--fill-ink);
+  color: var(--on-fill-ink);
+  box-shadow: 3px 3px 0 var(--pink);
+}
+.btn.primary:active:not(:disabled) {
+  box-shadow: 1px 1px 0 var(--pink);
+  transform: translate(2px, 2px);
+}
+.btn.pink {
+  background: var(--pink);
+  color: var(--on-pink);
+  box-shadow: 3px 3px 0 var(--fill-ink);
+}
+.btn.secondary {
+  background: var(--ewo-fill-2);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+.btn.quiet {
+  min-height: 40px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--ink-2);
+  font-weight: 550;
+  font-size: 14px;
+}
+.btn.block {
+  width: 100%;
+}
+@media (hover: hover) {
+  .btn.secondary:hover:not(:disabled) {
+    background: var(--ewo-fill-3);
+  }
+  .btn.quiet:hover:not(:disabled) {
+    color: var(--ink);
+  }
+}
+
+/* Form controls stay at 16px or more: smaller ones make iOS zoom the page. */
+.input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1.5px solid var(--ewo-line-strong);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  color: var(--ink);
+  font: 550 17px / 1.2 var(--ewo-sans);
+}
+.input::placeholder {
+  color: var(--ewo-fg-4);
+}
+.input:focus {
+  border-color: var(--pink-text);
+}
+
+.error {
+  color: var(--pink-text);
+  font-size: 14px;
+  font-weight: 550;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    transition: none;
+  }
+}
+
+/* While the page scrolls, rows slide under a resting cursor; their hover states wait until it
+   stops (src/lib/scrolling.ts). Only for a mouse: touch has no hover to protect. */
+@media (hover: hover) and (pointer: fine) {
+  :root[data-scrolling] main {
+    pointer-events: none;
+  }
+}
