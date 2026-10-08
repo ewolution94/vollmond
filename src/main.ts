@@ -10,8 +10,11 @@ import '../vendor/ewo/elements/switch.js';
 import '../vendor/ewo/elements/badge.js';
 import '../vendor/ewo/elements/emblem.js';
 import '../vendor/ewo/elements/emblem-maker.js';
+import { pressFeedback } from '../vendor/ewo/elements/press.js';
 
 unlockAudio();
+// Every tap on a phone answers with the games' springy press (plans/mobile-touch.md, the user's go 2026-10-08).
+pressFeedback({ preset: 'lively' });
 
 import { mount } from 'svelte';
 import App from './App.svelte';

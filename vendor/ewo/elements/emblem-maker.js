@@ -116,6 +116,7 @@ var f = {
   .rolling svg { animation: roll 0.45s ease-out; }
   @keyframes roll { to { transform: rotate(360deg); } }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
   @media (prefers-reduced-motion: reduce) {
     .hop, .rolling svg { animation: none; }
     /* Still a visible press, without the movement. */
@@ -162,8 +163,8 @@ var f = {
 		return this.root.querySelector("ewo-emblem");
 	}
 	#r() {
-		let e = i(), t = f[e], n = o(this.theme, e), r = (e, r) => n.map((n, i) => `<button class="arrow" part="arrow ${e}" type="button" data-part="${i}" data-step="${e === "prev" ? -1 : 1}" aria-label="${t[e].replace("{part}", n.name)}">${m(r)}</button>`).join("");
-		this.root.innerHTML = `<div class="maker"><div class="col">${r("prev", "M15 5l-7 7 7 7")}</div><div class="stage" part="stage"><ewo-emblem theme="${this.theme}" value="${this.value.join(",")}" boil></ewo-emblem><span class="tag" part="tag" aria-hidden="true"></span></div><div class="col">${r("next", "M9 5l7 7-7 7")}</div></div><p class="legend" part="legend">${n.map((e) => e.name).join(" · ")}</p><button class="dice" part="dice" type="button">${h}<span>${t.roll}</span></button><p class="sr" aria-live="polite"></p>`, this.#n().setAttribute("initial", this.getAttribute("initial") ?? "");
+		let e = i(), t = f[e], n = o(this.theme, e), r = (e, r) => n.map((n, i) => `<button class="arrow" part="arrow ${e}" type="button" data-press="own" data-part="${i}" data-step="${e === "prev" ? -1 : 1}" aria-label="${t[e].replace("{part}", n.name)}">${m(r)}</button>`).join("");
+		this.root.innerHTML = `<div class="maker"><div class="col">${r("prev", "M15 5l-7 7 7 7")}</div><div class="stage" part="stage"><ewo-emblem theme="${this.theme}" value="${this.value.join(",")}" boil></ewo-emblem><span class="tag" part="tag" aria-hidden="true"></span></div><div class="col">${r("next", "M9 5l7 7-7 7")}</div></div><p class="legend" part="legend">${n.map((e) => e.name).join(" · ")}</p><button class="dice" part="dice" type="button" data-press="own">${h}<span>${t.roll}</span></button><p class="sr" aria-live="polite"></p>`, this.#n().setAttribute("initial", this.getAttribute("initial") ?? "");
 		for (let e of this.root.querySelectorAll(".arrow")) e.addEventListener("click", () => this.#i(Number(e.dataset.part), Number(e.dataset.step)));
 		this.root.querySelector(".dice").addEventListener("click", () => this.#a());
 		for (let e of this.root.querySelectorAll(".arrow, .dice")) this.#o(e);
@@ -212,8 +213,10 @@ var f = {
 		this.setAttribute("value", e.join(",")), this.emit("change", { value: e });
 	}
 	#l(e) {
-		let t = this.root.querySelector(".tag"), n = this.root.querySelector(".sr");
-		t.textContent = e, n.textContent = e, t.classList.add("on"), clearTimeout(this.#t), this.#t = window.setTimeout(() => t.classList.remove("on"), 1100);
+		let t = this.root.querySelector(".sr");
+		t.textContent = e;
+		let n = this.root.querySelector(".tag");
+		n.textContent = e, n.classList.add("on"), clearTimeout(this.#t), this.#t = window.setTimeout(() => n.classList.remove("on"), 1100);
 	}
 };
 n("ewo-emblem-maker", g);

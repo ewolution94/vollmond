@@ -411,8 +411,11 @@
     text-align: start;
     transition: transform 0.15s var(--ewo-ease);
   }
-  .name:active:not(:disabled) {
-    transform: scale(0.97);
+  /* A mouse's press; on a phone the shared pressFeedback() presses it (main.ts). */
+  @media (hover: hover) and (pointer: fine) {
+    .name:active:not(:disabled) {
+      transform: scale(0.97);
+    }
   }
   .name.on {
     border-color: var(--ink);

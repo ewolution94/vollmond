@@ -205,8 +205,12 @@ button {
   -webkit-tap-highlight-color: transparent;
   transition: transform var(--ewo-dur-1) var(--ewo-ease);
 }
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
+/* :active for a mouse only: on a phone Folio's pressFeedback() presses every control (main.ts), and
+   both together pressed twice. */
+@media (hover: hover) and (pointer: fine) {
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
 }
 .btn:focus-visible,
 .input:focus-visible {
@@ -223,9 +227,11 @@ button {
   color: var(--on-fill-ink);
   box-shadow: 3px 3px 0 var(--pink);
 }
-.btn.primary:active:not(:disabled) {
-  box-shadow: 1px 1px 0 var(--pink);
-  transform: translate(2px, 2px);
+@media (hover: hover) and (pointer: fine) {
+  .btn.primary:active:not(:disabled) {
+    box-shadow: 1px 1px 0 var(--pink);
+    transform: translate(2px, 2px);
+  }
 }
 .btn.pink {
   background: var(--pink);
