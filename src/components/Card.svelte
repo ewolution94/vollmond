@@ -155,6 +155,8 @@
     container-type: inline-size;
     border-radius: 4.2% / 3%;
     -webkit-tap-highlight-color: transparent;
+    /* A card you turn is tapped twice quickly: that's no double-tap zoom (learnings/ios-and-webkit.md). */
+    touch-action: manipulation;
     -webkit-touch-callout: none;
     user-select: none;
   }
