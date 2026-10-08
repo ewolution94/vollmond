@@ -135,12 +135,16 @@ body::after {
 a {
   color: inherit;
 }
-/* manipulation: two quick taps (the deck's + and −, a name on the ring) aren't a double-tap zoom on an
-   iPhone; panning and pinch zoom still work (learnings/ios-and-webkit.md). */
 button {
   font: inherit;
   color: inherit;
   cursor: pointer;
+}
+/* The family's rule: two quick taps on a control (the deck's + and −, a name on the ring) aren't a
+   double-tap zoom on an iPhone; panning and pinch zoom still work. On the controls, never on <html>:
+   Safari ignores it there once <html> has an overflow (learnings/ios-and-webkit.md). Zero specificity,
+   so a component's own touch-action wins. */
+:where(button, a, label, summary, input, select, textarea, [role='button'], [role='radio']) {
   touch-action: manipulation;
 }
 .sr-only {
