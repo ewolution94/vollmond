@@ -199,10 +199,12 @@
         <div class="actions">
           <button class="btn primary" onclick={copy}>{copied ? t('copied') : t('copyLink')}</button>
           <button class="btn secondary" onclick={() => (showQr = !showQr)} aria-expanded={showQr}>QR</button>
-          <a class="btn secondary" href="/{view.code}/screen" target="_blank" rel="noopener">{t('bigScreen')}</a>
+          <a class="btn secondary wide-only" href="/{view.code}/screen" target="_blank" rel="noopener">{t('bigScreen')}</a>
         </div>
         {#if showQr}<div class="qr"><Qr {url} /></div>{/if}
-        <p class="hint">{t('bigScreenHint')}</p>
+        <p class="hint wide-only">{t('bigScreenHint')}</p>
+        <!-- A phone is never the big screen (the user, 2026-10-08): it gets the address to open elsewhere. -->
+        <p class="hint phone-only">{t('bigScreenPhone')} <span class="screen-url">{url.replace(/^https?:\/\//, '')}/screen</span></p>
       </div>
 
       <div class="plate people">
@@ -460,6 +462,23 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+  }
+  /* The big screen is for a laptop, a TV or a projector: a phone (or one held sideways) doesn't offer it. */
+  .phone-only {
+    display: none;
+  }
+  @media (max-width: 699px), (max-height: 499px) {
+    .wide-only {
+      display: none;
+    }
+    .phone-only {
+      display: block;
+    }
+  }
+  .screen-url {
+    font-family: var(--ewo-mono);
+    color: var(--ink);
+    overflow-wrap: anywhere;
   }
   .qr {
     width: min(240px, 100%);
