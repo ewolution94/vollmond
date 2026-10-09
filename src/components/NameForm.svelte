@@ -17,7 +17,8 @@
     busy?: boolean;
     error?: string;
     autofocus?: boolean;
-    onsubmit: (name: string, arms: Avatar) => void;
+    /** `event`: the form's submit, so the caller can show its wait at the button (src/lib/waits.ts). */
+    onsubmit: (name: string, arms: Avatar, event: SubmitEvent) => void;
   } = $props();
 
   const random = (): Avatar => ({ field: Math.floor(Math.random() * 8), charge: Math.floor(Math.random() * 16) });
@@ -33,7 +34,7 @@
   function submit(event: SubmitEvent) {
     event.preventDefault();
     saveArms(arms);
-    onsubmit(name.trim(), arms);
+    onsubmit(name.trim(), arms, event);
   }
 </script>
 

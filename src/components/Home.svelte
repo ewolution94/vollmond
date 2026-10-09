@@ -1,30 +1,33 @@
 <script lang="ts">
   import { api, ApiError, CODE, type SeatTicket } from '../lib/api';
   import { errorText, t } from '../lib/i18n.svelte';
+  import { newKey, waitAt } from '../lib/waits';
   import Card from './Card.svelte';
   import NameForm from './NameForm.svelte';
 
-  let { oncreate, onjoin }: { oncreate: (seat: SeatTicket, name: string) => void; onjoin: (code: string) => void } = $props();
+  /** `oncreate` resolves once the new village can show (its first view): the button waits for that. */
+  let {
+    oncreate,
+    onjoin,
+  }: { oncreate: (seat: SeatTicket, name: string, signal: AbortSignal) => Promise<void>; onjoin: (code: string) => void } = $props();
 
   let code = $state('');
-  let busy = $state(false);
   let error = $state('');
   const validCode = $derived(CODE.test(code));
+  /** One key per "Found a village", kept for its retries (a timed-out first try may have made it). */
+  let key = newKey();
 
-  async function create(name: string, arms: { field: number; charge: number }) {
-    if (busy) return;
+  async function create(name: string, arms: { field: number; charge: number }, event: SubmitEvent) {
     if (!name) {
       error = errorText('name');
       return;
     }
-    busy = true;
     error = '';
     try {
-      oncreate(await api.create(name, arms), name);
+      await waitAt(event, async (signal) => oncreate(await api.create(name, arms, key, signal), name, signal), t('wait_create'));
+      key = newKey();
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
-    } finally {
-      busy = false;
     }
   }
 
@@ -62,7 +65,7 @@
   </div>
 
   <div class="forms">
-    <NameForm action={t('newGame')} {busy} {error} onsubmit={create} />
+    <NameForm action={t('newGame')} {error} onsubmit={create} />
     <div class="or"><span>{t('or')}</span></div>
     <form class="join" onsubmit={join}>
       <label class="label" for="code">{t('code')}</label>

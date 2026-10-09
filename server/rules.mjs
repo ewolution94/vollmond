@@ -780,6 +780,24 @@ function resolveVote(g, now) {
   begin(g, 'verdict', now);
 }
 
+/**
+ * The host ended the game early (development/plans/end-game.md): no winner, no awards, but the end's
+ * view all the same, so everyone sees who was who and the chronicle so far.
+ */
+export function endEarly(g, by, now) {
+  g.winner = null;
+  g.ended = { by };
+  g.phase = 'end';
+  g.prompts = new Map();
+  g.acts = new Map();
+  g.deadline = null;
+  g.until = null;
+  g.paused = null;
+  g.awards = null;
+  g.log.push({ type: 'ended', night: g.night, day: g.day, by });
+  void now;
+}
+
 function end(g, won, now) {
   g.winner = won;
   g.phase = 'end';
@@ -1016,6 +1034,7 @@ export function view(g, viewer) {
     growl: g.phase === 'dawn' || g.phase === 'debate' || g.phase === 'election' ? g.growl : null,
     secondVote: g.secondVote,
     winner: g.winner,
+    ended: g.ended ?? null,
     awards: ended ? g.awards : null,
     log: ended ? g.log : null,
     me: null,

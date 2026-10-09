@@ -58,6 +58,8 @@ export interface Player {
   avatar: Avatar;
   bot: boolean;
   online: boolean;
+  /** left during the running game: still on its ring, gone from the next */
+  left?: boolean;
 }
 
 export interface LobbyDeck {
@@ -237,6 +239,8 @@ export interface Game {
   secondVote: boolean;
   /** one night, at the end: the middle as dealt and as it ended */
   center?: { dealt: RoleId[]; now: RoleId[] } | null;
+  /** the host ended it early (development/plans/end-game.md): no winner, every card shown */
+  ended?: { by: string } | null;
   winner: { side: 'village' | 'wolves' | 'lovers' | 'piper' | 'angel' | 'whitewolf' | 'tanner' | 'none'; sides?: string[]; players: string[] } | null;
   awards: { id: 'first' | 'sharp' | 'aim' | 'bluff'; player: string; count?: number }[] | null;
   log: LogEntry[] | null;
@@ -301,46 +305,46 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     response = await fetch(path, { ...init, cache: 'no-store' });
   } catch {
-    // Safari says "Load failed", Chrome "Failed to fetch": classify by type (learnings/ios-and-webkit.md).
-    throw new ApiError('offline');
+    // Given up on (the signal from track(), 12 s), or the network. Safari says "Load failed", Chrome
+    // "Failed to fetch": classify by type, never by message (learnings/ios-and-webkit.md).
+    throw new ApiError(init.signal?.aborted ? 'timeout' : 'offline');
   }
   if (response.status === 204) return undefined as T;
   const body = await response.json().catch(() => null);
-  if (!response.ok) throw new ApiError(body?.error ?? `http-${response.status}`, response.status);
+  // A 5xx without the game's own reason is the NAS or Cloudflare (a deploy, an overload): "busy".
+  if (!response.ok) throw new ApiError(body?.error ?? (response.status >= 500 ? 'busy' : `http-${response.status}`), response.status);
   return body as T;
 }
 
-const post = (body: unknown, token?: string): RequestInit => ({
+const post = (body: unknown, token?: string, signal?: AbortSignal): RequestInit => ({
   method: 'POST',
   headers: { 'content-type': 'application/json', ...(token ? { 'x-vollmond-token': token } : {}) },
   body: JSON.stringify(body ?? {}),
+  signal,
 });
 
-/** Out of reach for a moment: no connection, or the server restarting during a deploy (Cloudflare's 502/503/530). */
-const passing = (e: unknown) => e instanceof ApiError && (e.code === 'offline' || e.status >= 500);
-
-/** Once more after a pause, when the failure looks like it passes (a deploy swaps the container in seconds). */
+/** Once more after a pause when the network or the server was away: only for reads, never a move. */
 async function again<T>(call: () => Promise<T>, wait = 1500): Promise<T> {
   try {
     return await call();
   } catch (e) {
-    if (!passing(e)) throw e;
+    if (!(e instanceof ApiError && (e.code === 'offline' || e.code === 'busy'))) throw e;
     await new Promise((r) => setTimeout(r, wait));
-    try {
-      return await call();
-    } catch (e2) {
-      throw e2 instanceof ApiError && e2.status >= 500 ? new ApiError('restarting', e2.status) : e2;
-    }
+    return call();
   }
 }
 
 export const api = {
   config: () => again(() => request<Config>('/api/config')),
-  create: (name: string, avatar: Avatar | null) => again(() => request<SeatTicket>('/api/rooms', post({ name, avatar }))),
-  info: (code: string) => request<{ code: string; village: string; phase: RoomPhase; players: number; full: boolean }>(`/api/rooms/${code}`),
-  join: (code: string, name: string, avatar: Avatar | null, token?: string) =>
-    again(() => request<SeatTicket>(`/api/rooms/${code}/join`, post({ name, avatar, token }))),
-  act: (seat: SeatTicket, action: string, body?: unknown) => request<void>(`/api/rooms/${seat.code}/${action}`, post(body, seat.token)),
+  /** `key`: the same for every try of one "Found a village", so a retry after a timeout gets the same village. */
+  create: (name: string, avatar: Avatar | null, key?: string, signal?: AbortSignal) =>
+    request<SeatTicket>('/api/rooms', post({ name, avatar, key }, undefined, signal)),
+  info: (code: string) => again(() => request<{ code: string; village: string; phase: RoomPhase; players: number; full: boolean }>(`/api/rooms/${code}`)),
+  /** `key`: as for create, so a retried join doesn't seat you twice. */
+  join: (code: string, name: string, avatar: Avatar | null, token?: string, key?: string, signal?: AbortSignal) =>
+    request<SeatTicket>(`/api/rooms/${code}/join`, post({ name, avatar, token, key }, undefined, signal)),
+  act: (seat: SeatTicket, action: string, body?: unknown, signal?: AbortSignal) =>
+    request<void>(`/api/rooms/${seat.code}/${action}`, post(body, seat.token, signal)),
 };
 
 /** Room codes: four consonants (server/game.mjs → CODE). */

@@ -15,7 +15,7 @@
   import Lobby from './Lobby.svelte';
   import Play from './Play.svelte';
 
-  let { room, config, onleave, onrejoin }: { room: Room; config: Config | null; onleave: () => void; onrejoin: () => void } = $props();
+  let { room, config, onleave, onrejoin }: { room: Room; config: Config | null; onleave: (from?: Event) => void; onrejoin: () => void } = $props();
 
   const view = $derived(room.view);
   const game = $derived(view?.game ?? null);
@@ -54,7 +54,7 @@
 {:else if view.phase === 'gone'}
   <section class="gone">
     <h1 class="display">{t('noRoom')}</h1>
-    <button class="btn secondary" onclick={onleave}>{t('back')}</button>
+    <button class="btn secondary" onclick={() => onleave()}>{t('back')}</button>
   </section>
 {:else if view.phase === 'lobby' || !game}
   <Lobby {room} {view} {config} {onleave} />

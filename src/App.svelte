@@ -4,6 +4,7 @@
   import { Room } from './lib/room.svelte';
   import { forgetSeat, saveName, savedSeat, saveSeat } from './lib/session';
   import { loadCensus } from './lib/census';
+  import { actAt } from './lib/waits';
   import Sky from './components/Sky.svelte';
   import Bar from './components/Bar.svelte';
   import Home from './components/Home.svelte';
@@ -38,15 +39,38 @@
   function enter(seat: SeatTicket) {
     saveSeat(seat);
     room?.close();
-    room = new Room(seat);
-    room.connect();
+    const next = new Room(seat);
+    room = next;
+    next.connect();
     go(`/${seat.code}`);
+    return next;
   }
 
-  function leaveRoom() {
-    if (room) forgetSeat(room.seat.code);
-    room?.close();
-    room = null;
+  /**
+   * A new seat (founded or joined): the button that asked waits until the village's first view, so
+   * the lobby shows whole instead of a blank page (development/plans/waiting-states.md).
+   */
+  async function seated(seat: SeatTicket, name: string, signal: AbortSignal) {
+    saveName(name);
+    await enter(seat).ready(signal);
+  }
+
+  /**
+   * Leaving: the server lets the others play on without you (and passes on the host), then the page
+   * forgets the seat. Waited for at the button; if the server can't be reached, you leave anyway.
+   */
+  async function leaveRoom(from?: Event) {
+    const leaving = room;
+    if (leaving) {
+      try {
+        await actAt(leaving, 'leave', undefined, from);
+      } catch {
+        // Gone from here all the same; the server notices when the stream closes.
+      }
+      forgetSeat(leaving.seat.code);
+      leaving.close();
+    }
+    if (room === leaving) room = null;
     go('/');
   }
 
@@ -94,7 +118,8 @@
     <Screen code={screenCode} />
   {/key}
 {:else}
-  <Bar code={room ? room.seat.code : null} village={room?.view?.village ?? null} />
+  <Bar code={room ? room.seat.code : null} village={room?.view?.village ?? null} {room} onleave={leaveRoom} />
+  {#if room}<ewo-connection state={room.connection}></ewo-connection>{/if}
   <main>
     {#if room}
       <Game {room} {config} onleave={leaveRoom} onrejoin={rejoin} />
@@ -102,19 +127,13 @@
       {#if !reclaiming}
         <Join
           {code}
-          onjoin={(seat, name) => {
-            saveName(name);
-            enter(seat);
-          }}
+          onjoin={seated}
           onback={() => go('/')}
         />
       {/if}
     {:else}
       <Home
-        oncreate={(seat, name) => {
-          saveName(name);
-          enter(seat);
-        }}
+        oncreate={seated}
         onjoin={(c) => go(`/${c}`)}
       />
     {/if}

@@ -10,16 +10,17 @@
   import type { Room } from '../lib/room.svelte';
   import { errorText, t, tk } from '../lib/i18n.svelte';
   import { listNames, narrate } from '../lib/narrate';
+  import { actAt } from '../lib/waits';
   import Card from './Card.svelte';
   import Shield from './Shield.svelte';
 
-  let { room = null, view, game, onleave, screen = false }: { room?: Room | null; view: View; game: Game; onleave?: () => void; screen?: boolean } = $props();
+  let { room = null, view, game, onleave, screen = false }: { room?: Room | null; view: View; game: Game; onleave?: (from?: Event) => void; screen?: boolean } = $props();
 
   const side = $derived(game.winner?.side ?? 'none');
   const oneNight = $derived(game.mode === 'onenight');
   /** One night can have two winners (the village and the Tanner) or none at all. */
   const title = $derived(
-    oneNight ? (game.winner?.sides?.length ? game.winner.sides.map((x) => tk(`win:${x}`)).join(' ') : t('win:nobody')) : tk(`win:${side}`),
+    game.ended ? t('gameOver') : oneNight ? (game.winner?.sides?.length ? game.winner.sides.map((x) => tk(`win:${x}`)).join(' ') : t('win:nobody')) : tk(`win:${side}`),
   );
   const role = (id: unknown) => (id ? tk(`role:${id}`) : '?');
   const won = $derived(Boolean(game.me && game.winner?.players.includes(game.me.id)));
@@ -95,6 +96,8 @@
         return t('log:scapegoat', { id: name(v('id')) });
       case 'judge':
         return t('log:judge');
+      case 'ended':
+        return t('log:ended', { by: name(v('by')) });
       case 'growl':
         return v('growl') ? t('log:growl') : null;
       // One night
@@ -135,24 +138,24 @@
     return out;
   });
 
-  let busy = $state(false);
   let error = $state('');
-  async function rematch() {
+  /** Play again, waited for at the button (src/lib/waits.ts). */
+  async function rematch(from: Event) {
     if (!room) return;
-    busy = true;
     try {
-      await room.act('rematch');
+      await actAt(room, 'rematch', undefined, from);
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
-    } finally {
-      busy = false;
     }
   }
 </script>
 
 <section class="end" class:screen>
   <header>
-    {#if game.me}<p class="band">{won ? t('youWon') : t('youLost')}</p>{/if}
+    {#if game.ended}
+      <!-- Ended early by the host (development/plans/end-game.md): no winner, the cards and the chronicle so far. -->
+      <p class="band tape">{t('endedBy', { name: name(game.ended.by) })}</p>
+    {:else if game.me}<p class="band">{won ? t('youWon') : t('youLost')}</p>{/if}
     <h1 class="display">{title}</h1>
     <p class="line">{narrate(view)}</p>
   </header>
@@ -218,12 +221,12 @@
 
     <footer class="go">
       {#if isHost}
-        <button class="btn primary big" disabled={busy} onclick={rematch}>{t('rematch')}</button>
+        <button class="btn primary big" onclick={rematch}>{t('rematch')}</button>
       {:else}
         <p class="hint">{t('waitRematch', { name: name(view.host) })}</p>
       {/if}
       {#if error}<p class="error">{error}</p>{/if}
-      {#if onleave}<button class="btn quiet" onclick={onleave}>{t('leave')}</button>{/if}
+      {#if onleave}<button class="btn quiet" onclick={(e) => onleave(e)}>{t('leave')}</button>{/if}
     </footer>
   {/if}
 </section>
@@ -240,6 +243,13 @@
     justify-items: center;
     gap: 8px;
     text-align: center;
+  }
+  /* "Ended early by …": a strip of tape across the end, slightly askew. */
+  .tape {
+    rotate: -2deg;
+    background: var(--fill-ink);
+    color: var(--on-fill-ink);
+    box-shadow: 2px 2px 0 var(--pink);
   }
   h1 {
     margin: 0;

@@ -1,9 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { t } from '../lib/i18n.svelte';
+  import type { Room } from '../lib/room.svelte';
   import Settings from './Settings.svelte';
 
-  let { code, village }: { code: string | null; village: string | null } = $props();
+  /** `room` during a village: the settings sheet then opens with "This game" (end it, leave it). */
+  let {
+    code,
+    village,
+    room = null,
+    onleave,
+  }: { code: string | null; village: string | null; room?: Room | null; onleave?: (from?: Event) => Promise<void> } = $props();
 
   let scrolled = $state(false);
   let settingsOpen = $state(false);
@@ -35,7 +42,7 @@
   </div>
 </header>
 
-<Settings open={settingsOpen} onclose={closeSettings} />
+<Settings open={settingsOpen} onclose={closeSettings} {room} {onleave} />
 
 <style>
   .bar {

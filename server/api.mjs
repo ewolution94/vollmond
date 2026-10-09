@@ -1,12 +1,12 @@
 // The game over HTTP: JSON for moves, Server-Sent Events for the live room.
 //
 //   GET  /api/config                        choices, defaults and the role catalogue for the lobby
-//   POST /api/rooms            {name, avatar?}    a new room; you're its host → {code, player, token}
+//   POST /api/rooms            {name, avatar?, key?}    a new room; you're its host → {code, player, token}
 //   GET  /api/rooms/:code                   does it exist → {code, village, phase, players, full}
-//   POST /api/rooms/:code/join {name, avatar?, token?}   a seat (the same one again with your token)
+//   POST /api/rooms/:code/join {name, avatar?, token?, key?}   a seat (the same one again with your token)
 //   GET  /api/rooms/:code/events?p=<id>     your view of the room, now and after every change (SSE)
 //   GET  /api/rooms/:code/events            without `p`: the big screen's view, which holds no secrets
-//   POST /api/rooms/:code/<action>          settings, start, move, control, rematch, abort, bot, unbot,
+//   POST /api/rooms/:code/<action>          settings, start, move, control, rematch, end, abort, bot, unbot,
 //                                           kick, leave, avatar; your token in `x-vollmond-token`
 //
 // Why SSE and not WebSockets: the server pushes one small JSON view per player, moves are a tap
@@ -133,7 +133,7 @@ export function createApi({ games }) {
       if (pathname === '/api/rooms') {
         if (req.method !== 'POST') throw new GameError('method', 405);
         const body = await readJson(req);
-        json(res, 201, games.create({ name: body.name, avatar: body.avatar }));
+        json(res, 201, games.create({ name: body.name, avatar: body.avatar, key: body.key }));
         return true;
       }
 
@@ -158,7 +158,7 @@ export function createApi({ games }) {
       if (req.method !== 'POST') throw new GameError('method', 405);
       const body = await readJson(req);
       if (action === 'join') {
-        json(res, 200, games.join(code, { name: body.name, avatar: body.avatar, token: body.token }));
+        json(res, 200, games.join(code, { name: body.name, avatar: body.avatar, token: body.token, key: body.key }));
         return true;
       }
       games.act(code, req.headers['x-vollmond-token'], action, body);

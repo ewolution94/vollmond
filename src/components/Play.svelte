@@ -11,13 +11,14 @@
   import type { Room } from '../lib/room.svelte';
   import { errorText, t, tk } from '../lib/i18n.svelte';
   import { narrate } from '../lib/narrate';
+  import { actAt } from '../lib/waits';
   import Action from './Action.svelte';
   import Ending from './Ending.svelte';
   import Mine from './Mine.svelte';
   import Moment from './Moment.svelte';
   import Village from './Village.svelte';
 
-  let { room, view, game, onleave }: { room: Room; view: View; game: Game; onleave: () => void } = $props();
+  let { room, view, game, onleave }: { room: Room; view: View; game: Game; onleave: (from?: Event) => void } = $props();
 
   const isHost = $derived(view.host === room.seat.player);
   const me = $derived(game.me);
@@ -57,21 +58,14 @@
   });
 
   let error = $state('');
-  let confirmAbort = $state(false);
-  async function control(command: string) {
+  /** The host's pause, resume and skip, waited for at the button. Ending the game is in the settings sheet. */
+  async function control(command: string, from: Event) {
     try {
-      await room.act('control', { command });
+      await actAt(room, 'control', { command }, from);
+      error = '';
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
     }
-  }
-  async function abort() {
-    try {
-      await room.act('abort');
-    } catch (e) {
-      error = errorText(e instanceof ApiError ? e.code : 'other');
-    }
-    confirmAbort = false;
   }
 </script>
 
@@ -93,19 +87,12 @@
       {#if isHost}
         <div class="host">
           {#if game.paused !== null}
-            <button class="btn secondary small" onclick={() => control('resume')}>▶ {t('resume')}</button>
+            <button class="btn secondary small" onclick={(e) => control('resume', e)}>▶ {t('resume')}</button>
           {:else if game.deadline}
-            <button class="btn secondary small" onclick={() => control('pause')}>❚❚ {t('pause')}</button>
+            <button class="btn secondary small" onclick={(e) => control('pause', e)}>❚❚ {t('pause')}</button>
           {/if}
           {#if ['debate', 'dawn', 'verdict', 'deal'].includes(game.phase)}
-            <button class="btn secondary small" onclick={() => control('next')}>{t('skip')} →</button>
-          {/if}
-          {#if confirmAbort}
-            <span class="sure">{t('abortSure')}</span>
-            <button class="btn pink small" onclick={abort}>{t('abort')}</button>
-            <button class="btn quiet small" onclick={() => (confirmAbort = false)}>{t('back')}</button>
-          {:else}
-            <button class="btn quiet small" onclick={() => (confirmAbort = true)}>{t('abort')}</button>
+            <button class="btn secondary small" onclick={(e) => control('next', e)}>{t('skip')} →</button>
           {/if}
         </div>
       {/if}
@@ -180,10 +167,6 @@
     min-height: 36px;
     padding: 0 12px;
     font-size: 14px;
-  }
-  .sure {
-    font-size: 14px;
-    color: var(--ink-2);
   }
   .board {
     display: grid;

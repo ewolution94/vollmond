@@ -19,6 +19,7 @@ export function listNames(names: string[]) {
 
 /** The moment's key in LINES and the names it mentions. */
 export function moment(game: Game): { key: string; ids: string[] } {
+  if (game.phase === 'end' && game.ended) return { key: 'ended', ids: [] };
   if (game.mode === 'onenight') {
     if (game.phase === 'end') {
       const side = game.winner?.side ?? 'none';

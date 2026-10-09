@@ -14,6 +14,7 @@
   import { errorText, t, tk } from '../lib/i18n.svelte';
   import { play } from '../lib/sound';
   import { prefs } from '../lib/prefs.svelte';
+  import { actAt } from '../lib/waits';
   import Shield from './Shield.svelte';
   import Card from './Card.svelte';
 
@@ -48,7 +49,6 @@
   /** middle cards (One night), or the Thief's card (-1: keep) */
   let cards: number[] = $state([]);
   let heal = $state(false);
-  let busy = $state(false);
   let error = $state('');
   let asked = '';
   $effect(() => {
@@ -69,24 +69,25 @@
     ringPick = prompt?.options && !done && kind !== 'witch' ? tap : null;
   });
 
-  async function send(move: Record<string, unknown>) {
-    busy = true;
+  /**
+   * A move, waited for at the control that made it (src/lib/waits.ts): it stays pressed until the
+   * server answers, a second tap does nothing, and a slow answer shows the moon.
+   */
+  async function send(move: Record<string, unknown>, from?: Event | Element | null) {
     error = '';
     try {
-      await room.act('move', move);
+      await actAt(room, 'move', move, from);
       if (prefs.sounds && view.settings.where === 'call' && kind !== 'hurry') play('flip');
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
-    } finally {
-      busy = false;
     }
   }
 
-  function tap(id: string) {
+  function tap(id: string, from?: Event) {
     if (!prompt || done) return;
     if (live) {
       if (act?.target === id) return;
-      void send({ kind: 'pick', target: id });
+      void send({ kind: 'pick', target: id }, from);
       return;
     }
     if (PAIRS.has(kind ?? '')) {
@@ -117,20 +118,20 @@
     return chosen.length > 0;
   });
 
-  function confirm() {
-    if (kind === 'cupid' || kind === 'swap') return chosen.length === 2 && send({ kind: 'pair', a: chosen[0], b: chosen[1] });
-    if (kind === 'piper') return send({ kind: 'charm', a: chosen[0], b: chosen[1] ?? null });
-    if (kind === 'witch') return send({ kind: 'witch', heal, poison: chosen[0] ?? null });
-    if (kind === 'thief') return send({ kind: 'take', index: cards[0] === -1 ? null : cards[0] });
-    if (kind === 'lone' || kind === 'drink') return send({ kind: 'center', index: cards[0] });
-    if (kind === 'look' && cards.length === 2) return send({ kind: 'center', indices: cards });
-    if (chosen[0]) return send({ kind: 'pick', target: chosen[0] });
+  function confirm(from: Event) {
+    if (kind === 'cupid' || kind === 'swap') return chosen.length === 2 && send({ kind: 'pair', a: chosen[0], b: chosen[1] }, from);
+    if (kind === 'piper') return send({ kind: 'charm', a: chosen[0], b: chosen[1] ?? null }, from);
+    if (kind === 'witch') return send({ kind: 'witch', heal, poison: chosen[0] ?? null }, from);
+    if (kind === 'thief') return send({ kind: 'take', index: cards[0] === -1 ? null : cards[0] }, from);
+    if (kind === 'lone' || kind === 'drink') return send({ kind: 'center', index: cards[0] }, from);
+    if (kind === 'look' && cards.length === 2) return send({ kind: 'center', indices: cards }, from);
+    if (chosen[0]) return send({ kind: 'pick', target: chosen[0] }, from);
   }
 
   const extras = $derived(kind === 'wolf' ? (prompt?.extras ?? null) : null);
   const mine = $derived(me?.extras ?? {});
-  function extra(which: 'second' | 'white', id: string) {
-    void send({ kind: which, target: mine[which] === id ? null : id });
+  function extra(which: 'second' | 'white', id: string, from: Event) {
+    void send({ kind: which, target: mine[which] === id ? null : id }, from);
   }
 
   const role = (id: RoleId | null | undefined) => (id ? tk(`role:${id}`) : '?');
@@ -175,7 +176,7 @@
       {@const p = player(id)}
       {@const on = live ? act?.target === id : chosen.includes(id)}
       <li>
-        <button class="name" class:on disabled={busy || done} onclick={() => tap(id)}>
+        <button class="name" class:on disabled={done} onclick={(e) => tap(id, e)}>
           {#if p}<Shield avatar={p.avatar} size={34} />{/if}
           <span class="who">{p?.name ?? '?'}{#if id === room.seat.player}<span class="you"> · {t('you')}</span>{/if}</span>
           {#if kind === 'wolf' && packPicks[id]}<span class="pack">◆ {packPicks[id].join(', ')}</span>{/if}
@@ -186,12 +187,12 @@
   </ul>
 {/snippet}
 
-{#snippet live_names(options: string[], on: string | null | undefined, pick: (id: string) => void)}
+{#snippet live_names(options: string[], on: string | null | undefined, pick: (id: string, from: Event) => void)}
   <ul class="names small">
     {#each options as id (id)}
       {@const p = player(id)}
       <li>
-        <button class="name" class:on={on === id} disabled={busy} onclick={() => pick(id)}>
+        <button class="name" class:on={on === id} onclick={(e) => pick(id, e)}>
           {#if p}<Shield avatar={p.avatar} size={26} />{/if}
           <span class="who">{p?.name ?? '?'}</span>
         </button>
@@ -204,7 +205,7 @@
   <ul class="middle">
     {#each prompt?.center ?? [] as i (i)}
       <li>
-        <button class="pile" class:on={cards.includes(i)} disabled={busy || done} onclick={() => middle(i)} aria-label={t('middleCard', { n: i + 1 })}>
+        <button class="pile" class:on={cards.includes(i)} disabled={done} onclick={() => middle(i)} aria-label={t('middleCard', { n: i + 1 })}>
           <Card role={null} face="back" width="76px" />
           <span>{i + 1}</span>
         </button>
@@ -228,11 +229,11 @@
   {:else if kind === 'ready'}
     <p class="title display">{t('prompt:ready')}</p>
     <p class="hint">{t('promptHint:ready')}</p>
-    <button class="btn primary block" disabled={busy || Boolean(act)} onclick={() => send({ kind: 'ready' })}>{act ? t('waiting') : t('ready')}</button>
+    <button class="btn primary block" disabled={Boolean(act)} onclick={(e) => send({ kind: 'ready' }, e)}>{act ? t('waiting') : t('ready')}</button>
   {:else if kind === 'hurry'}
     <p class="title display">{t('prompt:hurry')}</p>
     <p class="hint">{t('promptHint:hurry')}</p>
-    <button class="btn block" class:primary={!me.hurried} class:secondary={me.hurried} disabled={busy} onclick={() => send({ kind: 'hurry', on: !me.hurried })}>
+    <button class="btn block" class:primary={!me.hurried} class:secondary={me.hurried} onclick={(e) => send({ kind: 'hurry', on: !me.hurried }, e)}>
       {me.hurried ? `✓ ${t('hurried')}` : t('hurry')}
     </button>
     <p class="label center">{t('hurryCount', { n: hurried, m: alive })}</p>
@@ -243,8 +244,8 @@
       <p class="mine">{act.peek ? t('peek') : t('sleep')} ✓</p>
     {:else}
       <div class="pair">
-        <button class="btn pink" disabled={busy} onclick={() => send({ kind: 'peek', peek: true })}>{t('peek')}</button>
-        <button class="btn secondary" disabled={busy} onclick={() => send({ kind: 'peek', peek: false })}>{t('sleep')}</button>
+        <button class="btn pink" onclick={(e) => send({ kind: 'peek', peek: true }, e)}>{t('peek')}</button>
+        <button class="btn secondary" onclick={(e) => send({ kind: 'peek', peek: false }, e)}>{t('sleep')}</button>
       </div>
     {/if}
   {:else if kind === 'witch'}
@@ -253,7 +254,7 @@
     {#if done}
       <p class="mine">{act?.heal ? `${t('heal')} ✓ ` : ''}{act?.poison ? `${t('poison')}: ${name(act.poison)} ✓` : ''}{!act?.heal && !act?.poison ? `${t('brew')} ✓` : ''}</p>
     {:else}
-      <ewo-switch row tone="accent" checked={heal} disabled={!prompt.heal || busy} onchange={(e) => (heal = e.detail.checked)}>
+      <ewo-switch row tone="accent" checked={heal} disabled={!prompt.heal} onchange={(e) => (heal = e.detail.checked)}>
         {t('heal')}{#if !me.potions?.heal}<span slot="hint">{t('healUsed')}</span>{/if}
       </ewo-switch>
       {#if prompt.poison}
@@ -262,7 +263,7 @@
       {:else}
         <p class="hint">{t('poisonUsed')}</p>
       {/if}
-      <button class="btn primary block" disabled={busy} onclick={confirm}>{t('brew')}</button>
+      <button class="btn primary block" onclick={confirm}>{t('brew')}</button>
     {/if}
   {:else if kind === 'thief'}
     <p class="title display">{t('prompt:thief')}</p>
@@ -273,18 +274,18 @@
       <ul class="spare">
         {#each prompt.cards ?? [] as card, i (i)}
           <li>
-            <button class="spare-card" class:on={cards[0] === i} disabled={busy} onclick={() => (cards = cards[0] === i ? [] : [i])} aria-label={role(card)}>
+            <button class="spare-card" class:on={cards[0] === i} onclick={() => (cards = cards[0] === i ? [] : [i])} aria-label={role(card)}>
               <Card role={card} width="min(38vw, 150px)" />
             </button>
           </li>
         {/each}
       </ul>
       {#if !prompt.must}
-        <button class="btn quiet" class:on={cards[0] === -1} disabled={busy} onclick={() => (cards = cards[0] === -1 ? [] : [-1])}>
+        <button class="btn quiet" class:on={cards[0] === -1} onclick={() => (cards = cards[0] === -1 ? [] : [-1])}>
           {cards[0] === -1 ? '✓ ' : ''}{t('keepThief')}
         </button>
       {/if}
-      <button class="btn primary block" disabled={busy || !ready} onclick={confirm}>{confirmLabel}</button>
+      <button class="btn primary block" disabled={!ready} onclick={confirm}>{confirmLabel}</button>
     {/if}
   {:else if kind === 'lone' || kind === 'drink'}
     <p class="title display">{tk(`prompt:${kind}`)}</p>
@@ -294,7 +295,7 @@
       <p class="hint">{t('waiting')}</p>
     {:else}
       {@render middle_cards()}
-      <button class="btn primary block" disabled={busy || !ready} onclick={confirm}>{confirmLabel}</button>
+      <button class="btn primary block" disabled={!ready} onclick={confirm}>{confirmLabel}</button>
     {/if}
   {:else}
     <p class="title display">{tk(`prompt:${kind}`)}</p>
@@ -309,37 +310,37 @@
         {@render middle_cards()}
       {/if}
       {#if kind === 'vote'}
-        <button class="btn quiet" class:on={act && act.target === null} disabled={busy} onclick={() => send({ kind: 'pick', target: null })}>
+        <button class="btn quiet" class:on={act && act.target === null} onclick={(e) => send({ kind: 'pick', target: null }, e)}>
           {act && act.target === null ? '✓ ' : ''}{t('abstain')}
         </button>
       {/if}
       {#if kind === 'raven' || kind === 'rob'}
-        <button class="btn quiet" disabled={busy} onclick={() => send({ kind: 'pick', target: null })}>{t('nobody')}</button>
+        <button class="btn quiet" onclick={(e) => send({ kind: 'pick', target: null }, e)}>{t('nobody')}</button>
       {/if}
       {#if !live}
-        <button class="btn primary block" disabled={busy || !ready} onclick={confirm}>{confirmLabel}</button>
+        <button class="btn primary block" disabled={!ready} onclick={confirm}>{confirmLabel}</button>
       {/if}
     {/if}
     {#if extras}
       <div class="extras">
         {#if extras.second}
           <p class="label">{t('second')} <span class="aside">{t('secondHint')}</span></p>
-          {@render live_names(extras.second, mine.second, (id) => extra('second', id))}
+          {@render live_names(extras.second, mine.second, (id, e) => extra('second', id, e))}
         {/if}
         {#if extras.infect}
-          <ewo-switch row tone="accent" checked={Boolean(mine.infect)} disabled={busy} onchange={(e) => send({ kind: 'infect', on: e.detail.checked })}>
+          <ewo-switch row tone="accent" checked={Boolean(mine.infect)} onchange={(e) => send({ kind: 'infect', on: e.detail.checked }, e)}>
             {t('infect')}<span slot="hint">{t('infectHint')}</span>
           </ewo-switch>
         {/if}
         {#if extras.white?.length}
           <p class="label">{t('white')} <span class="aside">{t('whiteHint')}</span></p>
-          {@render live_names(extras.white, mine.white, (id) => extra('white', id))}
+          {@render live_names(extras.white, mine.white, (id, e) => extra('white', id, e))}
         {/if}
       </div>
     {/if}
     {#if kind === 'vote' && (prompt.judge || me.judgeCalled)}
       <div class="judge">
-        <button class="btn secondary block" disabled={busy || me.judgeCalled} onclick={() => send({ kind: 'judge' })}>
+        <button class="btn secondary block" disabled={me.judgeCalled} onclick={(e) => send({ kind: 'judge' }, e)}>
           {me.judgeCalled ? `✓ ${t('judgeCalled')}` : t('judgeCall')}
         </button>
         <p class="hint">{t('judgeHint')}</p>

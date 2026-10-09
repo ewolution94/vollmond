@@ -77,6 +77,7 @@
   const title = $derived(game ? phaseTitle(game) : '');
 </script>
 
+<ewo-connection state={room.connection}></ewo-connection>
 <div class="screen">
   {#if !view}
     <p class="wait display">…</p>

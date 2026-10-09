@@ -9,13 +9,14 @@
   import { ApiError } from '../lib/api';
   import type { Room } from '../lib/room.svelte';
   import { errorText, t, tk, type Key } from '../lib/i18n.svelte';
+  import { actAt } from '../lib/waits';
   import { deckCards, ROLE_ORDER } from '../lib/roles';
   import ArmsSheet from './ArmsSheet.svelte';
   import Card from './Card.svelte';
   import Qr from './Qr.svelte';
   import Shield from './Shield.svelte';
 
-  let { room, view, config, onleave }: { room: Room; view: View; config: Config | null; onleave: () => void } = $props();
+  let { room, view, config, onleave }: { room: Room; view: View; config: Config | null; onleave: (from?: Event) => void } = $props();
 
   const me = $derived(view.players.find((p) => p.id === room.seat.player)!);
   const isHost = $derived(view.host === room.seat.player);
@@ -111,7 +112,6 @@
   // ---- the rest
   let copied = $state(false);
   let showQr = $state(false);
-  let starting = $state(false);
 
   async function copy() {
     try {
@@ -122,18 +122,14 @@
       showQr = true;
     }
   }
-  async function act(action: string, body?: unknown) {
+  /** A move, waited for at the control that made it (src/lib/waits.ts); `from` is the tap. */
+  async function act(action: string, body?: unknown, from?: Event) {
     try {
-      await room.act(action, body);
+      await actAt(room, action, body, from);
       error = '';
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
     }
-  }
-  async function start() {
-    starting = true;
-    await act('start');
-    starting = false;
   }
 
   type Row = { key: Key & keyof Settings; kind?: 'switch'; values?: readonly string[]; hint?: Key };
@@ -180,7 +176,7 @@
     {#if p.id === view.host}<span class="tag host">{t('host')}</span>{/if}
     {#if p.bot}<span class="tag">{t('bot')}</span>{/if}
     {#if isHost && p.id !== me.id && !p.bot}
-      <button class="btn quiet kick" onclick={() => act('kick', { player: p.id })}>{t('kick')}</button>
+      <button class="btn quiet kick" onclick={(e) => act('kick', { player: p.id }, e)}>{t('kick')}</button>
     {/if}
   </li>
 {/snippet}
@@ -214,8 +210,8 @@
         </ul>
         {#if isHost}
           <div class="bots">
-            <button class="btn secondary" onclick={() => act('bot')} disabled={view.players.filter((p) => p.bot).length >= (config?.maxBots ?? 12)}>+ {t('addBot')}</button>
-            {#if view.players.some((p) => p.bot)}<button class="btn quiet" onclick={() => act('unbot')}>− {t('removeBot')}</button>{/if}
+            <button class="btn secondary" onclick={(e) => act('bot', undefined, e)} disabled={view.players.filter((p) => p.bot).length >= (config?.maxBots ?? 12)}>+ {t('addBot')}</button>
+            {#if view.players.some((p) => p.bot)}<button class="btn quiet" onclick={(e) => act('unbot', undefined, e)}>− {t('removeBot')}</button>{/if}
           </div>
           <p class="hint">{t('botsHint')}</p>
         {/if}
@@ -360,13 +356,13 @@
 
   <footer class="go">
     {#if isHost}
-      <button class="btn primary big" onclick={start} disabled={Boolean(problem) || syncing || starting}>{t('start')}</button>
+      <button class="btn primary big" onclick={(e) => act('start', undefined, e)} disabled={Boolean(problem) || syncing}>{t('start')}</button>
       {#if problem}<p class="hint center">{problem}</p>{/if}
     {:else}
       <p class="wait">{t('waitHost', { name: host?.name ?? '…' })}</p>
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
-    <button class="btn quiet" onclick={onleave}>{t('leave')}</button>
+    <button class="btn quiet" onclick={(e) => onleave(e)}>{t('leave')}</button>
   </footer>
 </section>
 

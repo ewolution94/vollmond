@@ -199,3 +199,71 @@ test('One night refuses a table too big or too small', () => {
   for (let i = 0; i < 10; i++) act('bot');
   assert.equal(games.view(host.code).lobby.problem, 'too-many');
 });
+
+test('a retried "found a village" or join with the same key gets the same seat, not a second one', () => {
+  const clock = fakeClock();
+  const games = createGames({ clock, rng: seeded(3) });
+  const a = games.create({ name: 'Eric', key: 'try-1234-abcd' });
+  const b = games.create({ name: 'Eric', key: 'try-1234-abcd' });
+  assert.deepEqual(b, a, 'the same village and seat');
+  assert.equal(games.size, 1);
+  const j1 = games.join(a.code, { name: 'Anna', key: 'join-5678-efgh' });
+  const j2 = games.join(a.code, { name: 'Anna', key: 'join-5678-efgh' });
+  assert.deepEqual(j2, j1);
+  assert.equal(games.view(a.code, a.player).players.length, 2, 'Anna sits once');
+  // After a minute a key is forgotten: a new tap is a new request.
+  clock.run(61_000);
+  const c = games.create({ name: 'Eric', key: 'try-1234-abcd' });
+  assert.notEqual(c.code, a.code);
+  // A key that isn't one is ignored.
+  assert.notEqual(games.create({ name: 'X', key: 'short' }).code, games.create({ name: 'X', key: 'short' }).code);
+});
+
+test('the host ends a running game: everyone sees every card and the chronicle, marked ended early', () => {
+  const { games, host, act } = setup(5);
+  const guest = games.join(host.code, { name: 'Anna' });
+  for (let i = 0; i < 5; i++) act('bot');
+  assert.throws(() => act('end'), /wrong-phase/, 'nothing to end in the lobby');
+  act('start');
+  assert.throws(() => games.act(host.code, guest.token, 'end'), /not-host/, 'only the host ends it');
+  act('end');
+  const v = games.view(host.code, guest.player);
+  assert.equal(v.game.phase, 'end');
+  assert.deepEqual(v.game.ended, { by: host.player });
+  assert.equal(v.game.winner, null);
+  assert.equal(v.game.awards, null);
+  assert.ok(v.game.seats.every((s) => s.role), 'every card turned over');
+  assert.equal(v.game.log.at(-1).type, 'ended');
+  assert.equal(games.view(host.code).game.ended.by, host.player, 'the big screen too');
+  assert.throws(() => act('end'), /wrong-phase/, 'nothing left to end');
+  act('rematch');
+  assert.equal(games.view(host.code, host.player).phase, 'lobby', 'play again: the lobby, the tape gone');
+});
+
+test('the host ends a One night game too', () => {
+  const { games, host, act } = setup(6);
+  act('settings', { mode: 'onenight' });
+  for (let i = 0; i < 3; i++) act('bot');
+  act('start');
+  act('end');
+  const v = games.view(host.code, host.player);
+  assert.equal(v.game.mode, 'onenight');
+  assert.equal(v.game.phase, 'end');
+  assert.deepEqual(v.game.ended, { by: host.player });
+  assert.equal(v.game.winner, null);
+  assert.ok(v.game.seats.every((s) => s.role) && v.game.center, 'every card and the middle');
+});
+
+test('someone who leaves during a game keeps their name on the ring, and is gone from the next', () => {
+  const { games, host, act } = setup(8);
+  const guest = games.join(host.code, { name: 'Anna' });
+  for (let i = 0; i < 5; i++) act('bot');
+  act('start');
+  games.act(host.code, guest.token, 'leave');
+  const anna = games.view(host.code, host.player).players.find((p) => p.id === guest.player);
+  assert.equal(anna?.name, 'Anna');
+  assert.equal(anna?.left, true);
+  act('end');
+  act('rematch');
+  assert.ok(!games.view(host.code, host.player).players.some((p) => p.id === guest.player), 'gone from the lobby');
+});

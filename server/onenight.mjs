@@ -299,6 +299,22 @@ function resolveVote(g) {
 }
 
 /** Who has won, by the cards as they ended up. */
+/** The host ended it early: no winner; the end's view shows every card as it stands. */
+export function endEarly(g, by, now) {
+  g.winner = null;
+  g.ended = { by };
+  g.votes = g.votes ?? null;
+  g.dead = g.dead ?? [];
+  g.phase = 'end';
+  g.prompts = new Map();
+  g.acts = new Map();
+  g.deadline = null;
+  g.until = null;
+  g.paused = null;
+  g.log.push({ type: 'ended', by });
+  void now;
+}
+
 export function judge(g) {
   const card = (id) => seat(g, id).now;
   const died = g.dead.map(card);
@@ -359,6 +375,7 @@ export function view(g, viewer) {
     growl: null,
     secondVote: false,
     winner: g.winner,
+    ended: g.ended ?? null,
     awards: null,
     log: ended ? g.log : null,
     me: me

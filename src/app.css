@@ -300,3 +300,39 @@ button {
     pointer-events: none;
   }
 }
+
+/* The working mark in a control that waits for the server (Folio's track(), src/lib/waits.ts): the
+   moon wanes to new and waxes back to full, calmly. Under reduced motion it rests at a half moon. */
+.moonmark {
+  display: block;
+  width: 1.15em;
+  height: 1.15em;
+}
+.moonmark .dim {
+  fill: currentColor;
+  opacity: 0.25;
+}
+.moonmark .lit {
+  fill: currentColor;
+}
+.moonmark .shade {
+  animation: moonphase 1.8s linear infinite;
+}
+@keyframes moonphase {
+  from {
+    transform: translateX(-13px);
+  }
+  to {
+    transform: translateX(13px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .moonmark .shade {
+    animation: none;
+    transform: translateX(6px);
+  }
+}
+/* The connection pill sits under the bar. */
+ewo-connection {
+  --ewo-connection-top: calc(var(--bar-h) + env(safe-area-inset-top, 0px) + 8px);
+}

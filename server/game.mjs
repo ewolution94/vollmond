@@ -121,6 +121,31 @@ export function createGames({
     return r;
   }
 
+  // ---- a page's retry is the same request ---------------------------------------------------
+  // "Found a village" and a join carry a key the page keeps for every try of the same tap: a retry
+  // after the page gave up (Folio's track(), 12 s) gets the seat the first try made, instead of a
+  // second village or a second seat (development/plans/waiting-states.md). Kept for a minute.
+
+  /** @type {Map<string, { seat: { code: string, player: string, token: string }, at: number }>} */
+  const keyed = new Map();
+  const KEY = /^[A-Za-z0-9-]{8,64}$/;
+  const KEY_TTL = 60_000;
+
+  function keyedSeat(key, code = null) {
+    if (typeof key !== 'string' || !KEY.test(key)) return null;
+    const t = clock.now();
+    for (const [k, v] of keyed) if (t - v.at > KEY_TTL) keyed.delete(k);
+    const hit = keyed.get(key);
+    if (!hit || (code && hit.seat.code !== code)) return null;
+    const p = rooms.get(hit.seat.code)?.players.get(hit.seat.player);
+    return p && !p.left ? { ...hit.seat } : null;
+  }
+
+  function remember(key, seat) {
+    if (typeof key === 'string' && KEY.test(key)) keyed.set(key, { seat, at: clock.now() });
+    return seat;
+  }
+
   function within(stamps, windowMs, limit) {
     const t = clock.now();
     while (stamps.length && stamps[0] <= t - windowMs) stamps.shift();
@@ -201,7 +226,11 @@ export function createGames({
       host: r.host,
       settings: r.settings,
       notice: r.notice,
-      players: present(r).map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, bot: p.bot, online: p.online > 0 })),
+      // Someone who left during a game keeps their name and arms on the ring until the game is over
+      // (`left`); everything else counts only who's still here.
+      players: [...r.players.values()]
+        .filter((p) => !p.left || (r.game && r.game.seats.some((s) => s.id === p.id)))
+        .map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, bot: p.bot, online: p.online > 0, ...(p.left ? { left: true } : {}) })),
       lobby: r.phase === 'lobby' ? lobbyDeck(r) : null,
       game: r.game ? ruleView(r.game, seated ? playerId : null) : null,
       games: r.games,
@@ -311,8 +340,10 @@ export function createGames({
       return rooms.size;
     },
 
-    /** @param {{ name: unknown, avatar?: unknown }} body */
-    create({ name, avatar }) {
+    /** @param {{ name: unknown, avatar?: unknown, key?: unknown }} body */
+    create({ name, avatar, key }) {
+      const again = keyedSeat(key);
+      if (again) return again;
       if (!cleanName(name)) throw new GameError('name');
       if (rooms.size >= LIMITS.rooms || !within(created, 10 * 60_000, LIMITS.roomsPer10Min)) throw new GameError('busy', 429);
       const code = newCode();
@@ -336,7 +367,7 @@ export function createGames({
       rooms.set(code, r);
       const p = addPlayer(r, name, avatar);
       r.host = p.id;
-      return { code, player: p.id, token: p.token };
+      return remember(key, { code, player: p.id, token: p.token });
     },
 
     /** A quick look before joining. */
@@ -349,10 +380,12 @@ export function createGames({
     /**
      * Joins, or comes back: a known token gets the same seat again. Someone new during a game
      * watches it and plays the next one.
-     * @param {{ name?: unknown, avatar?: unknown, token?: unknown }} body
+     * @param {{ name?: unknown, avatar?: unknown, token?: unknown, key?: unknown }} body
      */
-    join(code, { name, avatar, token }) {
+    join(code, { name, avatar, token, key }) {
       const r = room(code);
+      const again = keyedSeat(key, r.code);
+      if (again) return again;
       if (typeof token === 'string' && token) {
         for (const p of r.players.values()) {
           if (p.token === token && !p.left) return { code: r.code, player: p.id, token: p.token };
@@ -361,7 +394,7 @@ export function createGames({
       }
       const p = addPlayer(r, name, avatar);
       touch(r);
-      return { code: r.code, player: p.id, token: p.token };
+      return remember(key, { code: r.code, player: p.id, token: p.token });
     },
 
     view(code, playerId = null) {
@@ -447,6 +480,15 @@ export function createGames({
         case 'leave':
           removePlayer(r, p);
           return;
+        case 'end': {
+          // The host stops a running game for everyone: the end screen with every card turned over and
+          // the chronicle so far, marked "ended early by …" (development/plans/end-game.md).
+          requireHost(r, p);
+          if (!r.game || r.game.phase === 'end') throw new GameError('wrong-phase', 409);
+          R(r.game).endEarly(r.game, p.id, clock.now());
+          r.games++;
+          break;
+        }
         case 'start': {
           requireHost(r, p);
           if (r.phase !== 'lobby') throw new GameError('wrong-phase', 409);

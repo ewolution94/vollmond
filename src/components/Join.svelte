@@ -2,14 +2,21 @@
   import { onMount } from 'svelte';
   import { api, ApiError, type RoomPhase, type SeatTicket } from '../lib/api';
   import { errorText, t } from '../lib/i18n.svelte';
+  import { newKey, waitAt } from '../lib/waits';
   import NameForm from './NameForm.svelte';
 
-  let { code, onjoin, onback }: { code: string; onjoin: (seat: SeatTicket, name: string) => void; onback: () => void } = $props();
+  /** `onjoin` resolves once the village can show (its first view): the button waits for that. */
+  let {
+    code,
+    onjoin,
+    onback,
+  }: { code: string; onjoin: (seat: SeatTicket, name: string, signal: AbortSignal) => Promise<void>; onback: () => void } = $props();
 
   let info: { village: string; phase: RoomPhase; players: number; full: boolean } | null = $state(null);
   let missing = $state(false);
-  let busy = $state(false);
   let error = $state('');
+  /** One key per join, kept for its retries, so a timed-out first try doesn't seat you twice. */
+  let key = newKey();
 
   onMount(() => {
     api.info(code).then(
@@ -21,22 +28,19 @@
     );
   });
 
-  async function submit(name: string, arms: { field: number; charge: number }) {
-    if (busy) return;
+  async function submit(name: string, arms: { field: number; charge: number }, event: SubmitEvent) {
     if (!name) {
       error = errorText('name');
       return;
     }
-    busy = true;
     error = '';
     try {
-      onjoin(await api.join(code, name, arms), name);
+      await waitAt(event, async (signal) => onjoin(await api.join(code, name, arms, undefined, key, signal), name, signal), t('wait_join'));
+      key = newKey();
     } catch (e) {
       const reason = e instanceof ApiError ? e.code : 'other';
       if (reason === 'no-room') missing = true;
       error = errorText(reason);
-    } finally {
-      busy = false;
     }
   }
 </script>
@@ -53,7 +57,7 @@
       {#if info.phase === 'game'}<p class="who">{t('joinRunning')}</p>{/if}
     {/if}
     <div class="form">
-      <NameForm action={t('join')} {busy} {error} autofocus onsubmit={submit} />
+      <NameForm action={t('join')} {error} autofocus onsubmit={submit} />
     </div>
   {/if}
 </section>
