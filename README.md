@@ -89,7 +89,7 @@ streams each page its view over Server-Sent Events.
 
 ```bash
 npm install
-npm run dev          # http://localhost:6010, the game server included (6000 is the NAS port)
+npm run dev          # http://localhost:6010, the game server included (6400 is the NAS port)
 npm run check        # svelte-check / TypeScript
 npm test             # the rules, the rooms, whole games played by bots (Node 24+)
 npm run cards        # draws public/cards/*.svg again from tools/cards
