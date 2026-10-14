@@ -3,9 +3,9 @@
 // deal, every night step and day phase the two seats are asked about (a pick chosen, then confirmed),
 // the moments (night, dawn, the verdict) once they've settled, the end with its chronicle open, and the
 // big screen beside them. Each shot checks for anything past the right edge and console errors;
-// AUDIT=1 also checks that every label sits in the middle of its box (tools/text-audit.mjs,
-// development/plans/text-centering.md). Not part of CI: Playwright is borrowed from Folio's checkout
-// next door (the workspace's `folio/node_modules`, WebKit already installed).
+// AUDIT=1 also checks that every label, and every stack of lines, sits in the middle of its box
+// (tools/text-audit.mjs, development/plans/text-centering.md). Not part of CI: Playwright is borrowed
+// from Folio's checkout next door (the workspace's `folio/node_modules`, WebKit already installed).
 //
 //   npm run build && node server/server.mjs --port 6011     (or the vollmond-prod preview)
 //   node tools/qa.mjs [base] [outdir]      W=390 H=844 LANG_UI=en THEME=dark WHERE=call by default
@@ -16,7 +16,7 @@
 //                                          1 px (the list that counts is WebKit's, the iPhone's engine)
 //   AUDIT=1 node tools/qa.mjs …            plus the text audits at every shot
 import { mkdirSync } from 'node:fs';
-import { digitAudit, textAudit } from './text-audit.mjs';
+import { digitAudit, stackAudit, textAudit } from './text-audit.mjs';
 
 const { webkit, chromium } = await import(process.env.PLAYWRIGHT ?? new URL('../../folio/node_modules/playwright/index.mjs', import.meta.url).href);
 
@@ -30,10 +30,17 @@ const MODES = (process.env.MODES ?? 'classic,onenight').split(',');
 const [SW, SH] = (process.env.SCREEN ?? '1280x720').split('x').map(Number);
 /** Text off its box's middle by this many px or more, at every shot (tools/text-audit.mjs). */
 const AUDIT = process.env.AUDIT ? Number(process.env.AUDIT) : 0;
-// A card's face is a print: its name stands under the drawn block, and its side band is set in the
-// card's own units, 2.4 px in the lobby's fan (tools/cards, Card.svelte).
-const AUDIT_SKIP = ['.face', '.face *'];
+// Not centred on purpose:
+// - a card's face is a print: its name stands under the drawn block, and its side band is set in the
+//   card's own units, 2.4 px in the lobby's fan (tools/cards, Card.svelte);
+// - a seat on the ring is a figure, the arms with their marks pinned on (the crown above, a heart on a
+//   corner) over the name; the button draws no box of its own (Village.svelte);
+// - an award is a card read from the top: its badge in line with its neighbours', then the winner's row,
+//   which ends in their arms (First to fall has no count line under it: 1.8 px high by its text, 2 px
+//   low by its ink; Ending.svelte).
+const AUDIT_SKIP = ['.face', '.face *', 'button.seat', '.awards li'];
 const offCentre = new Map();
+const offStack = new Map();
 const oldDigits = new Map();
 mkdirSync(OUT, { recursive: true });
 
@@ -79,6 +86,10 @@ async function shot(p, label, settle = 700) {
     for (const row of await p.page.evaluate(textAudit, { min: AUDIT, skip: AUDIT_SKIP })) {
       const key = `${row.where} | ${row.text.replace(/\d+/g, '#')}`;
       if (!offCentre.has(key)) offCentre.set(key, { ...row, at: `${p.name} ${label}` });
+    }
+    for (const row of await p.page.evaluate(stackAudit, { min: AUDIT, skip: AUDIT_SKIP })) {
+      const key = `${row.where} | ${row.text.replace(/\d+/g, '#')}`;
+      if (!offStack.has(key)) offStack.set(key, { ...row, at: `${p.name} ${label}` });
     }
     for (const row of await p.page.evaluate(digitAudit)) {
       const key = `${row.where} | ${row.text.replace(/\d+/g, '#')}`;
@@ -296,6 +307,13 @@ if (offCentre.size)
     `text off the middle of its box in ${offCentre.size} places (px, + low, − high; bias: the font's own share):\n  ${[...offCentre.values()]
       .sort((a, b) => Math.abs(b.off) - Math.abs(a.off))
       .map((r) => `${r.off > 0 ? '+' : ''}${r.off} (bias ${r.bias}) ${r.where} "${r.text}" ${r.font} h${r.height} @${r.at}`)
+      .join('\n  ')}`,
+  );
+if (offStack.size)
+  problems.push(
+    `stacked lines off the middle of their box in ${offStack.size} places (px, + low, − high):\n  ${[...offStack.values()]
+      .sort((a, b) => Math.abs(b.off) - Math.abs(a.off))
+      .map((r) => `${r.off > 0 ? '+' : ''}${r.off} ${r.where} "${r.text}" ${r.lines} lines h${r.height} @${r.at}`)
       .join('\n  ')}`,
   );
 if (oldDigits.size)
