@@ -389,6 +389,7 @@
   .mine {
     margin: 0;
     font: 700 20px/1.3 var(--display);
+    font-variant-numeric: lining-nums;
   }
   .names {
     list-style: none;
@@ -507,6 +508,7 @@
   }
   .pile span {
     font: 700 15px/1.2 var(--display);
+    font-variant-numeric: lining-nums;
   }
   .pile.on,
   .spare-card.on {

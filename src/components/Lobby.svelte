@@ -692,6 +692,7 @@
   .wait {
     margin: 0;
     font: 700 24px/1.1 var(--display);
+    font-variant-numeric: lining-nums;
     text-align: center;
   }
 </style>

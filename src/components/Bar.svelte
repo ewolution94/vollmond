@@ -56,11 +56,12 @@
     height: var(--bar-h);
     padding: 0 var(--gutter);
     background: color-mix(in oklab, var(--paper) 90%, transparent);
-    border-bottom: 1.5px solid transparent;
     transition: background-color 900ms ease;
   }
+  /* The rule under a scrolled page is drawn inside the bar: as a border it took 1.5 px off the bottom,
+     and the mark and the code sat 0.75 px above the bar's middle. */
   .bar.scrolled {
-    border-bottom-color: var(--line);
+    box-shadow: inset 0 -1.5px 0 var(--line);
   }
   .mark {
     display: flex;
@@ -75,8 +76,8 @@
   }
   .word {
     font: 800 27px/1 var(--display);
+    font-variant-numeric: lining-nums;
     letter-spacing: 0.01em;
-    translate: 0 -1px;
   }
   @media (hover: hover) {
     .mark:hover img {

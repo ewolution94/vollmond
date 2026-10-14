@@ -12,7 +12,7 @@
 <style>
   .clock {
     font: 800 max(28px, 9cqw) / 1 var(--display);
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: lining-nums tabular-nums;
     color: var(--indigo);
     text-shadow: 0 0 1px var(--cream);
   }

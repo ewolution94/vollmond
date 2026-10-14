@@ -235,9 +235,13 @@
     top: 79.5%;
     text-align: center;
     font: 800 12.4cqw / 1 var(--display);
+    font-variant-numeric: lining-nums;
     color: var(--indigo);
     white-space: nowrap;
     letter-spacing: 0.005em;
+    /* The face's overrides (app.css) lift its caps 0.048 em in their line; the name stays where it
+       was against the block's art. */
+    translate: 0 0.048em;
   }
   /* Long names (Kleines Mädchen, Dorfbewohner) still fit on one line. */
   .name.long {
@@ -265,7 +269,9 @@
     top: 84.5%;
     text-align: center;
     font: 800 11cqw / 1 var(--display);
+    font-variant-numeric: lining-nums;
     color: var(--indigo);
+    translate: 0 0.048em;
   }
   .dead .front {
     filter: grayscale(0.85) contrast(0.9);

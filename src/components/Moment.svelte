@@ -224,6 +224,7 @@
   }
   figcaption b {
     font: 800 26px/1 var(--display);
+    font-variant-numeric: lining-nums;
   }
   figcaption span {
     font-size: 14px;
