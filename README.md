@@ -133,6 +133,8 @@ src/lib/narrate.ts        the narrator's line for each moment (i18n.svelte.ts ho
 src/components/           Home, Join, Lobby, Game → Play (Action, Mine, Village, Moment) and Ending;
                           Screen (the big screen), Card, Shield (coats of arms), Sky
 tools/cards/              the woodcut deck: kit.mjs (inks, cuts), figures.mjs, roles/<role>.mjs
+tools/qa.mjs              a whole game headless, every screen shot (Playwright from Folio); AUDIT=1 adds
+                          tools/text-audit.mjs: every label in the middle of its box, full-height digits
 public/cards/             the drawn cards (from tools/cards)
 public/sw.js              offline shell (never the game's /api/)
 brand/                    the mark and app icons (public/icons/ is rendered from them)
