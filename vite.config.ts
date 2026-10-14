@@ -35,7 +35,7 @@ function server(): Plugin {
 
 export default defineConfig({
   plugins: [svelte(), server()],
-  // 6000 is the NAS port; locally the previews run beside it.
+  // 6400 is the NAS port; locally the previews run beside it.
   server: { port: 6010, strictPort: true },
   preview: { port: 6011, strictPort: true },
   build: {
