@@ -28,7 +28,7 @@ export const TIES = ['none', 'runoff'];
 export const FIRST_NIGHT = ['hunt', 'calm'];
 export const SEER = ['role', 'side'];
 /** Coat of arms: a field tincture and a charge (drawn by the client). */
-export const AVATAR = { fields: 8, charges: 16 };
+export const AVATAR = { fields: 14, charges: 24 };
 export const MAX_BOTS = 12;
 
 export const LIMITS = {
