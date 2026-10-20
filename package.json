@@ -14,6 +14,7 @@
     "start": "node server/server.mjs",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "node --test tests/*.test.mjs",
+    "test:sim": "node --test tests/*.sim.mjs",
     "cards": "node tools/cards/build.mjs"
   },
   "devDependencies": {

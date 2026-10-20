@@ -91,7 +91,8 @@ streams each page its view over Server-Sent Events.
 npm install
 npm run dev          # http://localhost:6010, the game server included (6400 is the NAS port)
 npm run check        # svelte-check / TypeScript
-npm test             # the rules, the rooms, whole games played by bots (Node 24+)
+npm test             # the unit tests: the rules, the roles and the rooms on fixed deals (Node 24+; CI runs these)
+npm run test:sim     # the simulated games: whole games played to a winner by bots (local only)
 npm run cards        # draws public/cards/*.svg again from tools/cards
 npm run build && npm start   # production server on :8080 (or --port 6011)
 ```
@@ -102,8 +103,9 @@ To try a game alone: found a village, add bots in the lobby, deal.
 
 This mirrors Schätzle and Aale Spiele:
 
-- `ci.yml` runs the typecheck, the tests and the build, then smoke-tests the production server
+- `ci.yml` runs the typecheck, the unit tests and the build, then smoke-tests the production server
   (page, headers, every card, a village with bots dealt, each stream carrying only its own card).
+  The simulated games (`npm run test:sim`) stay local.
 - `docker-publish.yml` gates on `ci.yml`, then pushes `ghcr.io/ewolution94/vollmond:latest` for amd64
   and arm64; only the branch's newest commit publishes.
 - The shared Watchtower picks the image up. A push to `release` is the whole deploy, and it ends any
