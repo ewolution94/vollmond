@@ -1,8 +1,10 @@
 // What a device remembers: the name and coat of arms you play under, and your seat in each room (so a
-// reload, or the phone locking mid-game, puts you back in the same seat with your card). Storage can be
-// blocked; then nothing is remembered and everything still works.
+// reload, or the phone locking mid-game, puts you back in the same seat with your card). The name and the
+// arms also go to Folio's shared cookie, so they follow you to the other ewolution games
+// (development/plans/emblems.md). Storage can be blocked; then nothing is remembered and everything still works.
 
 import type { Avatar, SeatTicket as Seat } from './api';
+import { relatedEmblem, shareEmblem, sharedEmblem, sharedName, shareName } from '../../vendor/ewo/elements/emblem-shared.js';
 
 const NAME = 'vollmond:name';
 const ARMS = 'vollmond:arms';
@@ -25,18 +27,42 @@ function write(key: string, value: string | null) {
   }
 }
 
-export const savedName = () => read(NAME) ?? '';
-export const saveName = (name: string) => write(NAME, name.trim() || null);
-/** The coat of arms you last played under, or null for a new random one. */
-export function savedArms(): Avatar | null {
+/** The name field's maxlength: a name from another game may be longer. */
+const NAME_MAX = 24;
+
+/** The name you last joined with, here or in another ewolution game. */
+export const savedName = () => (sharedName() || read(NAME) || '').slice(0, NAME_MAX);
+export function saveName(name: string) {
+  write(NAME, name.trim() || null);
+  shareName(name);
+}
+const ownArms = (): Avatar | null => {
   try {
     const a = JSON.parse(read(ARMS) ?? 'null');
     return a && Number.isInteger(a.field) && Number.isInteger(a.charge) ? { field: a.field, charge: a.charge } : null;
   } catch {
     return null;
   }
+};
+
+/**
+ * The coat of arms you last picked, here or in another game; else the one you last played under here;
+ * else one with your coin's or price tag's charge from the other games; else null for a new random one.
+ */
+export function savedArms(): Avatar | null {
+  const shared = sharedEmblem('heraldry');
+  if (shared) return { field: shared[0], charge: shared[1] };
+  const own = ownArms();
+  if (own) return own;
+  const related = relatedEmblem('heraldry');
+  return related ? { field: related[0], charge: related[1] } : null;
 }
-export const saveArms = (arms: Avatar) => write(ARMS, JSON.stringify(arms));
+/** Kept here; shared with the other games when it's new (a pick, or the first arms you play under), not when joining with the ones you had. */
+export function saveArms(arms: Avatar) {
+  const before = ownArms();
+  write(ARMS, JSON.stringify(arms));
+  if (before?.field !== arms.field || before?.charge !== arms.charge) shareEmblem('heraldry', [arms.field, arms.charge]);
+}
 
 export function savedSeat(code: string): Seat | null {
   try {
