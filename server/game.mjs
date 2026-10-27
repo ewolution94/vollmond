@@ -7,7 +7,7 @@
 //
 // Phases: lobby → game → (rematch) lobby.
 
-import { randomBytes, randomInt } from 'node:crypto';
+import { randomBytes, randomInt as cryptoInt } from 'node:crypto';
 import { ROLES, ROLE_IDS, balance, cardsFor, cleanDeck, deckProblem, deckSize, playersRange, suggestedDeck } from './roles.mjs';
 import * as classic from './rules.mjs';
 import * as onenight from './onenight.mjs';
@@ -102,13 +102,16 @@ export function villageName(code) {
  */
 
 /**
- * @param {{ clock?: Clock, rng?: () => number, botDelay?: [number, number] }} [options]
+ * @param {{ clock?: Clock, randomInt?: (n: number) => number, botDelay?: [number, number] }} [options]
+ *   randomInt(n) → 0..n-1 deals the roles, breaks ties and moves the bots (tests pass a seeded one)
  */
 export function createGames({
   clock = { now: Date.now, setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (h) => clearTimeout(h) },
-  rng = Math.random,
+  randomInt = (n) => cryptoInt(n),
   botDelay = BOT_DELAY,
 } = {}) {
+  /** For the bots' whims and timing only; every outcome takes a whole randomInt. */
+  const random = () => randomInt(1_000_000) / 1_000_000;
   /** @type {Map<string, any>} */
   const rooms = new Map();
   const created = [];
@@ -157,7 +160,7 @@ export function createGames({
   function newCode() {
     for (let i = 0; i < 100; i++) {
       let code = '';
-      for (let j = 0; j < 4; j++) code += CODE_LETTERS[randomInt(CODE_LETTERS.length)];
+      for (let j = 0; j < 4; j++) code += CODE_LETTERS[cryptoInt(CODE_LETTERS.length)];
       if (!rooms.has(code)) return code;
     }
     throw new GameError('busy', 503);
@@ -179,7 +182,7 @@ export function createGames({
   }
 
   function randomAvatar() {
-    return { field: randomInt(AVATAR.fields), charge: randomInt(AVATAR.charges) };
+    return { field: cryptoInt(AVATAR.fields), charge: cryptoInt(AVATAR.charges) };
   }
 
   function addPlayer(r, rawName, rawAvatar, bot = false) {
@@ -284,10 +287,10 @@ export function createGames({
     for (const p of present(r)) {
       if (!p.bot || !g.prompts.has(p.id) || r.botPending.has(p.id)) continue;
       const before = `${g.phase}:${g.night}:${g.day}`;
-      const move = botMove(ruleView(g, p.id), rng, { humansHurried });
+      const move = botMove(ruleView(g, p.id), random, { humansHurried });
       if (!move) continue;
       r.botPending.add(p.id);
-      const wait = botDelay[0] + rng() * (botDelay[1] - botDelay[0]);
+      const wait = botDelay[0] + random() * (botDelay[1] - botDelay[0]);
       clock.setTimeout(() => {
         r.botPending.delete(p.id);
         if (r.game !== g || `${g.phase}:${g.night}:${g.day}` !== before) return bots(r);
@@ -496,7 +499,7 @@ export function createGames({
           if (problem) throw new GameError(problem, 409);
           const people = present(r);
           const create = r.settings.mode === 'onenight' ? onenight.createOneNight : classic.createGame;
-          r.game = create({ players: people, settings: r.settings, deck, rng, now: clock.now() });
+          r.game = create({ players: people, settings: r.settings, deck, randomInt, now: clock.now() });
           for (const q of people) if (!q.bot && q.online === 0) setAway(r.game, q.id, true, clock.now());
           r.phase = 'game';
           r.botPending.clear();

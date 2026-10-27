@@ -15,6 +15,7 @@
 // A player dies with the most votes, two or more; a tie kills all of them. The hunter takes whoever
 // they voted for along.
 
+import { randomInt as cryptoInt } from 'node:crypto';
 import { ROLES, deckList, ONE_NIGHT } from './roles.mjs';
 import { RuleError, shuffle } from './rules.mjs';
 
@@ -24,10 +25,12 @@ const VILLAGE = new Set(['villager', 'seer', 'robber', 'troublemaker', 'drunk', 
 
 /**
  * @param {{ players: { id: string }[], settings: Record<string, any>, deck: Record<string, number>,
- *   rng?: () => number, now: number, cards?: string[], center?: string[] }} options
+ *   randomInt?: (n: number) => number, now: number, cards?: string[], center?: string[] }} options
+ *   randomInt(n) → 0..n-1 deals and picks the drunk's card when time runs out: node:crypto's by
+ *   default, a seeded one in tests
  */
-export function createOneNight({ players, settings, deck, rng = Math.random, now, cards: fixed, center: fixedCenter }) {
-  const all = fixed ? [...fixed, ...(fixedCenter ?? [])] : shuffle(deckList(deck), rng);
+export function createOneNight({ players, settings, deck, randomInt = (n) => cryptoInt(n), now, cards: fixed, center: fixedCenter }) {
+  const all = fixed ? [...fixed, ...(fixedCenter ?? [])] : shuffle(deckList(deck), randomInt);
   if (all.length !== players.length + ONE_NIGHT.center) throw new RuleError('deck-size', 400);
   const g = {
     mode: 'onenight',
@@ -50,7 +53,7 @@ export function createOneNight({ players, settings, deck, rng = Math.random, now
     dead: /** @type {string[]} */ ([]),
     winner: /** @type {{ side: string, sides: string[], players: string[] } | null} */ (null),
     away: new Set(),
-    rng,
+    randomInt,
   };
   begin(g, 'deal', now);
   return g;
@@ -261,7 +264,7 @@ function resolveNight(g) {
   }
   for (const d of byCard('drunk')) {
     // The drunk has to swap: at the deadline a middle card is taken at random.
-    const i = a(d)?.index ?? Math.floor(g.rng() * ONE_NIGHT.center);
+    const i = a(d)?.index ?? g.randomInt(ONE_NIGHT.center);
     [d.now, g.center[i]] = [g.center[i], d.now];
     learn(g, d.id, { type: 'drank', index: i });
     g.log.push({ type: 'drink', actor: d.id, index: i });

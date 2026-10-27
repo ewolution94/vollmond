@@ -1,16 +1,36 @@
-// Shared test helpers: a seeded random, the default settings, and a driver for one game's rules.
+// Shared test helpers: a seeded randomInt, the default settings, and a driver for one game's rules.
 
 import { act, advance, createGame, view } from '../server/rules.mjs';
 
-/** mulberry32: the same sequence for the same seed. */
-export function seeded(seed = 1) {
+/** mulberry32's 32-bit words: the same sequence for the same seed. */
+export function words(seed = 1) {
   return () => {
     seed |= 0;
     seed = (seed + 0x6d2b79f5) | 0;
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    return (t ^ (t >>> 14)) >>> 0;
   };
+}
+
+/**
+ * An integer in 0..n-1 from 32-bit words, exactly uniform: a word at or past the last full multiple
+ * of n is drawn again, the way node:crypto's randomInt does it (learnings/randomness.md in the
+ * workspace). Scaling or taking the word modulo n would favour the low numbers.
+ * @param {number} n  @param {() => number} word
+ */
+export function fairInt(n, word) {
+  if (!Number.isInteger(n) || n < 1 || n > 0x100000000) throw new RangeError('fairInt needs an integer 1 ≤ n ≤ 2^32');
+  const limit = Math.floor(0x100000000 / n) * n;
+  let w = word() >>> 0;
+  while (w >= limit) w = word() >>> 0;
+  return w % n;
+}
+
+/** A seeded randomInt(n) → 0..n-1, for the rules and the rooms in place of node:crypto's. */
+export function seeded(seed = 1) {
+  const word = words(seed);
+  return (n) => fairInt(n, word);
 }
 
 export const SETTINGS = Object.freeze({
@@ -40,7 +60,7 @@ export function table(cards, over = {}, seed = 1, extra = []) {
   const deck = {};
   for (const c of [...cards, ...extra]) deck[c] = (deck[c] ?? 0) + 1;
   let now = 0;
-  const g = createGame({ players, settings: { ...SETTINGS, ...over }, deck, rng: seeded(seed), now, cards, extra });
+  const g = createGame({ players, settings: { ...SETTINGS, ...over }, deck, randomInt: seeded(seed), now, cards, extra });
   const t = {
     g,
     get now() {

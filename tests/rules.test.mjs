@@ -22,7 +22,7 @@ test('the deal: everyone gets a card, wolves know each other', () => {
 test('a random deal uses exactly the deck', () => {
   const players = Array.from({ length: 9 }, (_, i) => ({ id: `p${i}` }));
   const deck = { werewolf: 2, seer: 1, witch: 1, hunter: 1, villager: 4 };
-  const g = createGame({ players, settings: SETTINGS, deck, rng: seeded(7), now: 0 });
+  const g = createGame({ players, settings: SETTINGS, deck, randomInt: seeded(7), now: 0 });
   const counts = {};
   for (const s of g.seats) counts[s.role] = (counts[s.role] ?? 0) + 1;
   assert.deepEqual(counts, deck);

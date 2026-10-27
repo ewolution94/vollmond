@@ -35,7 +35,7 @@ function fakeClock() {
 
 function setup(seed = 1) {
   const clock = fakeClock();
-  const games = createGames({ clock, rng: seeded(seed), botDelay: [500, 1500] });
+  const games = createGames({ clock, randomInt: seeded(seed), botDelay: [500, 1500] });
   const host = games.create({ name: 'Eric' });
   return { clock, games, host, act: (action, body) => games.act(host.code, host.token, action, body) };
 }
@@ -134,7 +134,7 @@ test('One night refuses a table too big or too small', () => {
 
 test('a retried "found a village" or join with the same key gets the same seat, not a second one', () => {
   const clock = fakeClock();
-  const games = createGames({ clock, rng: seeded(3) });
+  const games = createGames({ clock, randomInt: seeded(3) });
   const a = games.create({ name: 'Eric', key: 'try-1234-abcd' });
   const b = games.create({ name: 'Eric', key: 'try-1234-abcd' });
   assert.deepEqual(b, a, 'the same village and seat');

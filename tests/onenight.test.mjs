@@ -10,7 +10,7 @@ function night(cards, center, over = {}) {
   const deck = {};
   for (const c of [...cards, ...center]) deck[c] = (deck[c] ?? 0) + 1;
   let now = 0;
-  const g = createOneNight({ players, settings: { ...SETTINGS, mode: 'onenight', debate: 300, ...over }, deck, rng: seeded(3), now, cards, center });
+  const g = createOneNight({ players, settings: { ...SETTINGS, mode: 'onenight', debate: 300, ...over }, deck, randomInt: seeded(3), now, cards, center });
   const t = {
     g,
     act: (id, move) => act(g, id, move, now),

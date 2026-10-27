@@ -1,10 +1,21 @@
 // Simulated games for the rooms: whole games played to a winner by bots on the fake clock, both modes.
 // Not in CI (the user, 2026-10-20: "rely on simpler (unit) tests there"); run them with `npm run test:sim`.
 
-import { test } from 'node:test';
+import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGames, mergeSettings, DEFAULT_SETTINGS, villageName, cleanAvatar } from '../server/game.mjs';
 import { seeded } from './helpers.mjs';
+
+// Every outcome comes from the rooms' randomInt: a game that still reached for Math.random fails here.
+const realRandom = Math.random;
+before(() => {
+  Math.random = () => {
+    throw new Error('an outcome came from Math.random');
+  };
+});
+after(() => {
+  Math.random = realRandom;
+});
 
 /** A clock the test moves by hand; timers run in order. */
 function fakeClock() {
@@ -38,7 +49,7 @@ function fakeClock() {
 
 function setup(seed = 1) {
   const clock = fakeClock();
-  const games = createGames({ clock, rng: seeded(seed), botDelay: [500, 1500] });
+  const games = createGames({ clock, randomInt: seeded(seed), botDelay: [500, 1500] });
   const host = games.create({ name: 'Eric' });
   return { clock, games, host, act: (action, body) => games.act(host.code, host.token, action, body) };
 }

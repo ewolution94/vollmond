@@ -1,6 +1,7 @@
 // The rules of one game, from the deal to the winner. No I/O and no clock of its own: the room
 // (server/game.mjs) passes `now` in, calls advance() when a deadline passes, and streams view() to
-// each player. Tests drive it with a seeded random and a fake clock.
+// each player. Every random choice (the deal, a tie, what happens when time runs out) is a
+// randomInt(n) → 0..n-1, node:crypto's by default; tests pass a seeded one and a fake clock.
 //
 // Phases:
 //   deal                  everyone looks at their card
@@ -19,6 +20,7 @@
 // A step ends when everyone it waits for has acted (and the pack agrees on a victim), or when its
 // time runs out. A dead role's step still runs: the narrator calls it, nobody answers.
 
+import { randomInt as cryptoInt } from 'node:crypto';
 import { ROLES, deckList } from './roles.mjs';
 
 export class RuleError extends Error {
@@ -34,8 +36,8 @@ export class RuleError extends Error {
 export const FIXED = { deal: 30, dawn: 10, verdict: 10, hunter: 30, successor: 25, election: 60, vote: 60, runoff: 40 };
 /** Once everyone has acted, the step ends this much later, so the last tap doesn't snap the screen away. */
 export const GRACE = 1200;
-/** How often the Little Girl is seen when she peeks. */
-export const SPOT_CHANCE = 1 / 3;
+/** The Little Girl is seen once in this many peeks. */
+export const SPOT_ODDS = 3;
 const CHAT_MAX = 50;
 const CHAT_LENGTH = 120;
 
@@ -53,10 +55,10 @@ const HUNT = new Set(['night']);
 /**
  * Deals and opens the game. `cards` fixes the deal in seat order and `extra` the Thief's two (tests only).
  * @param {{ players: { id: string }[], settings: Record<string, any>, deck: Record<string, number>,
- *   rng?: () => number, now: number, cards?: string[], extra?: string[] }} options
+ *   randomInt?: (n: number) => number, now: number, cards?: string[], extra?: string[] }} options
  */
-export function createGame({ players, settings, deck, rng = Math.random, now, cards: fixed, extra: fixedExtra }) {
-  const all = fixed ? [...fixed, ...(fixedExtra ?? [])] : shuffle(deckList(deck), rng);
+export function createGame({ players, settings, deck, randomInt = (n) => cryptoInt(n), now, cards: fixed, extra: fixedExtra }) {
+  const all = fixed ? [...fixed, ...(fixedExtra ?? [])] : shuffle(deckList(deck), randomInt);
   // With a Thief in the deck, two cards stay off the table for him to choose from.
   const cards = all.slice(0, players.length);
   const extra = all.slice(players.length);
@@ -133,7 +135,7 @@ export function createGame({ players, settings, deck, rng = Math.random, now, ca
     angelWon: false,
     /** Did the bear growl this morning (null: no Bear Tamer alive). */
     growl: /** @type {boolean | null} */ (null),
-    rng,
+    randomInt,
   };
   for (const s of g.seats) if (s.side === 'wolves') learn(g, s.id, { type: 'pack', night: 0 });
   for (const role of ['sister', 'brother']) {
@@ -576,7 +578,7 @@ function resolveDusk(g) {
     let pair = g.acts.get(id);
     // Cupid has to bind someone: when the time runs out, the arrows fly anyway.
     if (!pair) {
-      const [a, b] = shuffle(p.options, g.rng);
+      const [a, b] = shuffle(p.options, g.randomInt);
       pair = { a, b };
     }
     const a = seat(g, pair.a), b = seat(g, pair.b);
@@ -589,7 +591,7 @@ function resolveDusk(g) {
   }
   for (const [id, p] of g.prompts) {
     if (p.kind !== 'model') continue;
-    const target = g.acts.get(id)?.target ?? p.options[Math.floor(g.rng() * p.options.length)];
+    const target = g.acts.get(id)?.target ?? p.options[g.randomInt(p.options.length)];
     g.model = target;
     learn(g, id, { type: 'model', night: g.night, target });
     g.log.push({ type: 'model', night: g.night, actor: id, target });
@@ -602,7 +604,7 @@ function resolveThief(g) {
     if (p.kind !== 'thief') continue;
     let index = g.acts.get(id)?.index;
     // A Thief who didn't choose keeps his card, unless both are wolves: then one is his.
-    if (index === undefined) index = p.must ? Math.floor(g.rng() * 2) : null;
+    if (index === undefined) index = p.must ? g.randomInt(2) : null;
     const s = seat(g, id);
     if (index === null) {
       s.role = 'villager';
@@ -636,7 +638,7 @@ function resolveNight(g) {
     if (p.kind === 'girl' && !a?.peek) g.log.push({ type: 'girl', night: g.night, actor: id, peek: false });
   }
   if (Object.keys(picks).length) {
-    t.attacked = plurality(Object.values(picks), g.rng);
+    t.attacked = plurality(Object.values(picks), g.randomInt);
     g.log.push({ type: 'wolves', night: g.night, target: t.attacked, picks });
   }
   for (const [id, x] of g.extras) {
@@ -721,7 +723,7 @@ function resolveShot(g) {
 function resolveSuccessor(g) {
   const options = living(g).map((s) => s.id);
   const pick = g.acts.get(g.task.id)?.target;
-  g.captain = pick && seat(g, pick)?.alive ? pick : options.length ? options[Math.floor(g.rng() * options.length)] : null;
+  g.captain = pick && seat(g, pick)?.alive ? pick : options.length ? options[g.randomInt(options.length)] : null;
   g.log.push({ type: 'captain', night: g.night, day: g.day, id: g.captain, by: g.task.id, chosen: Boolean(pick) });
 }
 
@@ -730,7 +732,7 @@ function resolveElection(g) {
   for (const [id, a] of g.acts) if (a.target) votes[id] = a.target;
   const targets = Object.values(votes);
   const ids = living(g).map((s) => s.id);
-  g.captain = targets.length ? plurality(targets, g.rng) : ids[Math.floor(g.rng() * ids.length)] ?? null;
+  g.captain = targets.length ? plurality(targets, g.randomInt) : ids.length ? ids[g.randomInt(ids.length)] : null;
   g.log.push({ type: 'election', day: g.day, votes, id: g.captain });
 }
 
@@ -950,8 +952,8 @@ function see(g, seer, target) {
 
 function peek(g, girl) {
   const wolves = living(g).filter((s) => s.side === 'wolves');
-  const glimpse = wolves.length ? wolves[Math.floor(g.rng() * wolves.length)].id : null;
-  const caught = g.rng() < SPOT_CHANCE;
+  const glimpse = wolves.length ? wolves[g.randomInt(wolves.length)].id : null;
+  const caught = g.randomInt(SPOT_ODDS) === 0;
   learn(g, girl.id, { type: 'glimpse', night: g.night, wolf: glimpse, caught });
   if (caught) for (const w of wolves) learn(g, w.id, { type: 'spotted', night: g.night, girl: girl.id });
   g.log.push({ type: 'girl', night: g.night, actor: girl.id, peek: true, wolf: glimpse, caught });
@@ -1086,19 +1088,23 @@ function learn(g, id, entry) {
   g.knowledge.set(id, list);
 }
 
-/** The most named, a tie broken at random. */
-function plurality(list, rng) {
+/** The most named, a tie broken at random. @param {(n: number) => number} randomInt */
+function plurality(list, randomInt) {
   const counts = new Map();
   for (const x of list) counts.set(x, (counts.get(x) ?? 0) + 1);
   const max = Math.max(...counts.values());
   const top = [...counts].filter(([, n]) => n === max).map(([x]) => x);
-  return top[Math.floor(rng() * top.length)];
+  return top[randomInt(top.length)];
 }
 
-export function shuffle(list, rng) {
+/**
+ * Fisher–Yates with the caller's randomInt, so every order is exactly as likely as its source allows.
+ * @template T  @param {readonly T[]} list  @param {(n: number) => number} randomInt 0..n-1
+ */
+export function shuffle(list, randomInt) {
   const a = [...list];
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
+    const j = randomInt(i + 1);
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
