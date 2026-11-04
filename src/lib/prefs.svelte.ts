@@ -1,22 +1,29 @@
 // What this device does on its own: sounds and the narrator's voice. Kept in the browser; storage can
-// be blocked, then the defaults hold. At one table, phones stay silent whatever is set here: only
-// the big screen speaks (Game.svelte asks `loud()`).
+// be blocked, then the defaults hold. A device that hasn't switched sounds takes Dashboard's value
+// (#ewo-config, src/lib/defaults.ts), else on. At one table, phones stay silent whatever is set
+// here: only the big screen speaks (Game.svelte asks `loud()`).
 
+import { readConfig } from '../../vendor/ewo/elements/config-client.js';
+import { soundsFor } from './defaults';
 import { i18n } from './i18n.svelte';
 
 const SOUNDS = 'vollmond:sounds';
 const VOICE = 'vollmond:voice';
 
-function read(key: string, fallback: boolean) {
+function stored(key: string): string | null {
   try {
-    const v = localStorage.getItem(key);
-    return v === null ? fallback : v === '1';
+    return localStorage.getItem(key);
   } catch {
-    return fallback;
+    return null;
   }
 }
 
-export const prefs = $state({ sounds: read(SOUNDS, true), voice: read(VOICE, false) });
+function read(key: string, fallback: boolean) {
+  const v = stored(key);
+  return v === null ? fallback : v === '1';
+}
+
+export const prefs = $state({ sounds: soundsFor(stored(SOUNDS), readConfig().sounds), voice: read(VOICE, false) });
 
 export function setPref(key: 'sounds' | 'voice', on: boolean) {
   prefs[key] = on;

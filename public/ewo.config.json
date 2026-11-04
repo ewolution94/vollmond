@@ -1,0 +1,9 @@
+{
+  "app": "vollmond",
+  "version": 1,
+  "settings": {
+    "lang": { "family": true },
+    "theme": { "family": true },
+    "sounds": { "family": true, "default": true }
+  }
+}
